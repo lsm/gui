@@ -78,11 +78,28 @@ function App() {
 
   async function handleSendMessage(e: Event) {
     e.preventDefault();
+    console.log("handleSendMessage called", {
+      inputValue: inputValue(),
+      hasText: !!inputValue().trim(),
+      selectedItem: selectedItem()
+    });
     
-    if (!inputValue().trim() || selectedItem() === null) return;
+    if (!inputValue().trim() || selectedItem() === null) {
+      console.log("Early return: no input or no selected chat");
+      return;
+    }
     
     try {
+      console.log("Calling sendMessage with", {
+        chatId: selectedItem()!,
+        text: inputValue()
+      });
       const [userMessage, aiResponse] = await sendMessage(selectedItem()!, inputValue());
+      
+      console.log("Messages received", {
+        userMessage,
+        aiResponse
+      });
       
       // Update messages state with both messages
       setMessages([...messages(), userMessage, aiResponse]);

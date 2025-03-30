@@ -11,6 +11,22 @@ type ChatViewProps = {
 };
 
 export function ChatView(props: ChatViewProps) {
+  // Handle the submit event
+  const handleSubmit = (e: Event) => {
+    e.preventDefault();
+    console.log("Form submitted", {
+      inputValue: props.inputValue,
+      hasText: !!props.inputValue.trim(),
+      disabled: props.disabled
+    });
+    
+    // Only proceed if there's input
+    if (props.inputValue.trim()) {
+      console.log("Calling onSendMessage");
+      props.onSendMessage(e);
+    }
+  };
+
   return (
     <div class="chat-container">
       <div class="chat-messages">
@@ -28,7 +44,7 @@ export function ChatView(props: ChatViewProps) {
       </div>
       
       {/* Message input */}
-      <form class="chat-input" onSubmit={props.onSendMessage}>
+      <form class="chat-input" onSubmit={handleSubmit}>
         <input
           type="text"
           value={props.inputValue}
@@ -36,6 +52,12 @@ export function ChatView(props: ChatViewProps) {
           placeholder="Type your message here..."
           disabled={props.disabled}
         />
+        <button 
+          type="submit" 
+          disabled={props.disabled || !props.inputValue.trim()}
+        >
+          <span>Send</span>
+        </button>
       </form>
     </div>
   );

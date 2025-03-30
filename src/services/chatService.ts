@@ -32,7 +32,7 @@ export async function loadChats(): Promise<Chat[]> {
  */
 export async function loadMessages(chatId: string): Promise<Message[]> {
   try {
-    const chatMessages = await invoke<Message[]>("get_messages", { chat_id: chatId });
+    const chatMessages = await invoke<Message[]>("get_messages", { chatId });
     return chatMessages;
   } catch (error) {
     console.error(`Error loading messages for chat ${chatId}:`, error);
@@ -49,7 +49,6 @@ export async function createChat(name: string): Promise<Chat> {
     try {
       const result = await invoke("test", { msg: "Hello, world!" });
       console.log("Test Result:", result);
-      // await invoke("subscribe_to_db_updates");
     } catch (subError) {
       console.warn("Warning during resubscribe attempt:", subError);
       // Continue even if this fails - it might not be necessary
@@ -85,19 +84,25 @@ export async function sendMessage(chatId: string, text: string): Promise<[Messag
       // Continue even if this fails
     }
     
-    // Add user message to chat
-    const userMessage = await invoke<Message>("add_message", {
-      chat_id: chatId,
-      text: text,
-      sender_name: "user"
+    // Process the chatId to ensure proper format
+    let processedChatId = chatId;
+    if (chatId.includes(":")) {
+      // Split by colon and take the second part if it's in table:id format
+      processedChatId = chatId.split(":")[1];
+    }
+    
+    // Add user message to chat using camelCase parameters
+    const userMessage = await invoke<Message>("add_message", { 
+      chatId: processedChatId,
+      text,
+      senderName: "user"
     });
     
-    // For demo purposes, we'll use a simple response
-    // In a real app, you'd call your AI service here
-    const aiResponse = await invoke<Message>("add_message", {
-      chat_id: chatId,
+    // Add AI response using the same parameter format
+    const aiResponse = await invoke<Message>("add_message", { 
+      chatId: processedChatId,
       text: `You said: "${userMessage.text}". This is a simulated AI response.`,
-      sender_name: "ai"
+      senderName: "ai"
     });
     
     return [userMessage, aiResponse];

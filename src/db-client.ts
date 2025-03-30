@@ -37,7 +37,7 @@ export async function subscribeToUpdates(
       try {
         const unsubscribe = await listen(eventName, (event) => {
           if (selectedChatId) {
-            invoke("get_messages", { chat_id: selectedChatId })
+            invoke("get_messages", { chatId: selectedChatId })
               .then((messages) => setMessages(messages as any[]));
           }
         });
