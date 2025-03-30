@@ -1,4 +1,4 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onMount, Show, createEffect } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -20,6 +20,7 @@ function App() {
   const [selectedItem, setSelectedItem] = createSignal<number | null>(null);
   const [items, setItems] = createSignal<Conversation[]>([]);
   const [loading, setLoading] = createSignal(true);
+  const [loadingMessages, setLoadingMessages] = createSignal(false);
   const [newConversationName, setNewConversationName] = createSignal("");
   const [showNewConversation, setShowNewConversation] = createSignal(false);
   
@@ -40,38 +41,62 @@ function App() {
     }
   }
   
+  // Load messages for the selected conversation
+  async function loadMessages(conversationId: number) {
+    try {
+      setLoadingMessages(true);
+      const conversationMessages = await invoke<Message[]>("get_messages", { conversationId });
+      setMessages(conversationMessages);
+    } catch (error) {
+      console.error(`Error loading messages for conversation ${conversationId}:`, error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }
+  
+  // Handle conversation selection
+  function handleSelectConversation(id: number) {
+    setSelectedItem(id);
+  }
+  
+  // Load initial conversations
   onMount(() => {
     loadConversations();
+  });
+  
+  // Load messages when selected conversation changes
+  createEffect(() => {
+    const currentConversation = selectedItem();
+    if (currentConversation !== null) {
+      loadMessages(currentConversation);
+    }
   });
 
   async function sendMessage(e: Event) {
     e.preventDefault();
     
-    if (!inputValue().trim()) return;
-    
-    // Add user message to chat
-    const userMessage: Message = { 
-      id: Date.now(), 
-      text: inputValue(), 
-      sender: "user" 
-    };
-    
-    setMessages([...messages(), userMessage]);
-    setInputValue("");
+    if (!inputValue().trim() || selectedItem() === null) return;
     
     try {
-      // This is where you would call your language model API
-      // For now we'll use the greet function from the template
-      const response = await invoke("greet", { name: userMessage.text });
+      // Add user message to chat
+      const userMessage = await invoke<Message>("add_message", {
+        conversationId: selectedItem(),
+        text: inputValue(),
+        sender: "user"
+      });
       
-      // Add AI response to chat
-      const aiMessage: Message = {
-        id: Date.now() + 1,
-        text: response as string,
+      setMessages([...messages(), userMessage]);
+      setInputValue("");
+      
+      // For demo purposes, we'll use a simple response
+      // In a real app, you'd call your AI service here
+      const aiResponse = await invoke<Message>("add_message", {
+        conversationId: selectedItem(),
+        text: `You said: "${userMessage.text}". This is a simulated AI response.`,
         sender: "ai"
-      };
+      });
       
-      setMessages([...messages(), aiMessage]);
+      setMessages([...messages(), aiResponse]);
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -136,7 +161,7 @@ function App() {
               {(item) => (
                 <div 
                   class={`item ${selectedItem() === item.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedItem(item.id)}
+                  onClick={() => handleSelectConversation(item.id)}
                 >
                   <div class="item-name">{item.name}</div>
                 </div>
@@ -150,13 +175,17 @@ function App() {
       <div class="main-content">
         <div class="chat-container">
           <div class="chat-messages">
-            <For each={messages()}>
-              {(message) => (
-                <div class={`message ${message.sender}`}>
-                  <div class="message-content">{message.text}</div>
-                </div>
-              )}
-            </For>
+            {loadingMessages() ? (
+              <div class="loading-state">Loading messages...</div>
+            ) : (
+              <For each={messages()}>
+                {(message) => (
+                  <div class={`message ${message.sender}`}>
+                    <div class="message-content">{message.text}</div>
+                  </div>
+                )}
+              </For>
+            )}
           </div>
           
           {/* Message input */}
@@ -166,8 +195,11 @@ function App() {
               value={inputValue()}
               onInput={(e) => setInputValue(e.currentTarget.value)}
               placeholder="Type your message here..."
+              disabled={selectedItem() === null}
             />
-            <button type="submit"><span>Send</span></button>
+            <button type="submit" disabled={selectedItem() === null}>
+              <span>Send</span>
+            </button>
           </form>
         </div>
       </div>

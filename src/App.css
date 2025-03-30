@@ -399,6 +399,7 @@ button {
   font-size: 14px;
   text-align: center;
   font-style: italic;
+  margin: 20px 0;
 }
 
 .new-conversation-btn {
@@ -462,4 +463,15 @@ button {
   color: rgba(236, 236, 241, 0.6);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-weight: 500;
+}
+
+.chat-input input:disabled {
+  background-color: rgba(40, 40, 40, 0.5);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+}
+
+.chat-input button:disabled {
+  background-color: rgba(16, 163, 127, 0.5);
+  cursor: not-allowed;
 }
