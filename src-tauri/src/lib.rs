@@ -4,7 +4,7 @@
 mod db;
 
 // Re-export types we need for the API
-pub use db::{Chat, Message, ApiChat};
+pub use db::{Chat, Message, ApiChat, ApiMessage};
 
 #[tauri::command]
 async fn test(msg: String) -> Result<String, String> {
@@ -53,14 +53,15 @@ async fn create_chat(name: String) -> Result<ApiChat, String> {
 }
 
 #[tauri::command]
-async fn get_messages(chat_id: String) -> Result<Vec<Message>, String> {
+async fn get_messages(chat_id: String) -> Result<Vec<ApiMessage>, String> {
     db::query_messages(chat_id)
         .await
+        .map(|messages| messages.into_iter().map(ApiMessage::from).collect())
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn add_message(chat_id: String, text: String, sender_name: String) -> Result<Message, String> {
+async fn add_message(chat_id: String, text: String, sender_name: String) -> Result<ApiMessage, String> {
     // Call the database function to add a message
     let message_id = db::add_message(chat_id.clone(), text.clone())
         .await
@@ -70,7 +71,7 @@ async fn add_message(chat_id: String, text: String, sender_name: String) -> Resu
     // create a temporary object to return
     let current_time = db::get_current_timestamp();
     
-    Ok(Message {
+    Ok(ApiMessage {
         id: message_id,
         chat_id,
         text,

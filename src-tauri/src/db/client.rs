@@ -141,12 +141,9 @@ pub async fn query_chats() -> Result<Vec<Chat>, Box<dyn std::error::Error>> {
 pub async fn query_messages(chat_id: String) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
     let db = get_db().await?;
     
-    // Clone the chat_id for the query
-    let id_for_query = chat_id.clone();
-    
     // Query messages for the given chat
     let mut result = db.query("SELECT * FROM message WHERE chat_id = $id ORDER BY sequence_number")
-        .bind(("id", id_for_query))
+        .bind(("id", chat_id))
         .await?;
     let messages: Vec<Message> = result.take(0)?;
     
@@ -162,24 +159,25 @@ pub async fn create_chat(name: String) -> Result<String, Box<dyn std::error::Err
     let user_id = format!("user-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("anonymous"));
     
     // Create a new chat
-    let (chat_id, chat) = create_chat_data(name, user_id);
+    let chat = create_chat_data(name, user_id);
     
     // Insert into the database with error tracing
     println!("Attempting to create chat in database");
-    let create_result: Result<Option<Chat>, surrealdb::Error> = db.create(("chat", chat_id.clone()))
+    let created: Option<Chat> = db.create("chat")
         .content(chat)
-        .await;
+        .await?;
         
-    match create_result {
-        Ok(_) => {
-            println!("Created chat with ID: {}", chat_id);
-            Ok(chat_id)
-        },
-        Err(e) => {
-            eprintln!("Failed to create chat: {}", e);
-            Err(e.into())
-        }
-    }
+    // Extract the ID from the created record
+    let chat_id = match created {
+        Some(record) => record.id.map_or_else(
+            || "unknown".to_string(), 
+            |thing| thing.id.to_string()
+        ),
+        None => return Err("Failed to create chat: No record returned".into()),
+    };
+        
+    println!("Created chat with ID: {}", chat_id);
+    Ok(chat_id)
 }
 
 // Add a new message
@@ -187,12 +185,19 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
     // Get DB connection with auto-reconnect if needed
     let db = get_db().await?;
     
-    // Clone the chat_id for checking and queries
-    let id_for_check = chat_id.clone();
+    // Check if chat exists - Extracting table and ID parts
+    println!("Checking if chat exists: {}", chat_id);
     
-    // Check if chat exists
-    println!("Checking if chat exists: {}", id_for_check);
-    let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select(("chat", id_for_check)).await;
+    // The chat_id might be in form "chat:uuid" or just "uuid"
+    let parts: Vec<&str> = chat_id.split(':').collect();
+    let (table, id) = if parts.len() > 1 {
+        (parts[0], parts[1])
+    } else {
+        ("chat", parts[0])
+    };
+    
+    // Query the chat with proper ID format
+    let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select((table, id)).await;
     let _chat = match chat_result {
         Ok(maybe_chat) => maybe_chat.ok_or("Chat not found")?,
         Err(e) => {
@@ -201,13 +206,10 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
         }
     };
     
-    // Clone for querying messages
-    let id_for_query = chat_id.clone();
-    
     // Get the next sequence number
-    println!("Querying messages for chat: {}", id_for_query);
+    println!("Querying messages for chat: {}", chat_id);
     let query_result = db.query("SELECT * FROM message WHERE chat_id = $id")
-        .bind(("id", id_for_query))
+        .bind(("id", chat_id.clone()))
         .await;
     
     let messages: Vec<Message> = match query_result {
@@ -230,7 +232,7 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
     let sender = format!("user-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("anonymous"));
     
     // Create a new message
-    let (message_id, message) = create_message_data(
+    let message = create_message_data(
         chat_id,
         text,
         sender,
@@ -238,19 +240,20 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
     );
     
     // Insert into the database
-    println!("Creating message with ID: {}", message_id);
-    let create_result: Result<Option<Message>, surrealdb::Error> = db.create(("message", message_id.clone()))
+    println!("Creating message");
+    let created: Option<Message> = db.create("message")
         .content(message)
-        .await;
+        .await?;
     
-    match create_result {
-        Ok(_) => {
-            println!("Created message with ID: {}", message_id);
-            Ok(message_id)
-        },
-        Err(e) => {
-            eprintln!("Failed to create message: {}", e);
-            Err(e.into())
-        }
-    }
+    // Extract the ID from the created record
+    let message_id = match created {
+        Some(record) => record.id.map_or_else(
+            || "unknown".to_string(), 
+            |thing| thing.id.to_string()
+        ),
+        None => return Err("Failed to create message: No record returned".into()),
+    };
+    
+    println!("Created message with ID: {}", message_id);
+    Ok(message_id)
 } 
