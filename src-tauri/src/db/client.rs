@@ -20,7 +20,7 @@ pub async fn init_database() -> Result<(), Box<dyn std::error::Error>> {
         // Test that the connection is still valid by running a simple query
         let db = DB.get().ok_or("DB initialized but not available")?;
         // Simple health check
-        let _: Option<serde_json::Value> = db.query("SELECT 1").await?.take(0)?;
+        let _: Option<serde_json::Value> = db.query("SELECT 1 FROM tb").await?.take(0)?;
         println!("Database connection verified");
         return Ok(());
     }
@@ -77,7 +77,7 @@ pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn std::error::Error>
     match DB.get() {
         Some(db) => {
             // Try a simple query to verify the connection is still valid
-            match db.query("SELECT 1").await {
+            match db.query("SELECT 1 FROM tb").await {
                 Ok(_) => Ok(db),
                 Err(e) => {
                     // Connection issue detected, try to reinitialize
@@ -106,7 +106,7 @@ pub async fn subscribe_to_updates() -> Result<(), Box<dyn std::error::Error>> {
     let db = DB.get().ok_or("Database was initialized but is no longer available")?;
     
     // Try to run a simple query to verify connection
-    match db.query("SELECT 1").await {
+    match db.query("SELECT 1 FROM tb").await {
         Ok(_) => {
             println!("Database connection confirmed");
             Ok(())
