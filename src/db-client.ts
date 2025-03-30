@@ -3,8 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 
 export async function subscribeToUpdates(
   setMessages: (messages: any[]) => void,
-  setConversations: (conversations: any[]) => void,
-  selectedConversationId: string | null
+  setChats: (chats: any[]) => void,
+  selectedChatId: string | null
 ) {
   // Set up subscription to database updates
   await invoke("subscribe_to_db_updates");
@@ -25,8 +25,8 @@ export async function subscribeToUpdates(
     for (const eventName of messageEventNames) {
       try {
         const unsubscribe = await listen(eventName, (event) => {
-          if (selectedConversationId) {
-            invoke("get_messages", { conversation_id: selectedConversationId })
+          if (selectedChatId) {
+            invoke("get_messages", { chat_id: selectedChatId })
               .then((messages) => setMessages(messages as any[]));
           }
         });
@@ -40,22 +40,22 @@ export async function subscribeToUpdates(
     return () => listeners.forEach(unsub => unsub());
   };
   
-  const setupConversationListeners = async () => {
+  const setupChatListeners = async () => {
     const listeners: (() => void)[] = [];
     
     // Try different event name formats
-    const conversationEventNames = [
-      "spacetimedb:tableupdate:conversation", 
-      "spacetimedb:tableupdate:Conversation",
-      "table:Conversation", 
-      "table:conversation"
+    const chatEventNames = [
+      "spacetimedb:tableupdate:chat", 
+      "spacetimedb:tableupdate:Chat",
+      "table:Chat", 
+      "table:chat"
     ];
     
-    for (const eventName of conversationEventNames) {
+    for (const eventName of chatEventNames) {
       try {
         const unsubscribe = await listen(eventName, (event) => {
-          invoke("get_conversations")
-            .then((conversations) => setConversations(conversations as any[]));
+          invoke("get_chats")
+            .then((chats) => setChats(chats as any[]));
         });
         listeners.push(unsubscribe);
         console.log(`Successfully subscribed to ${eventName}`);
@@ -68,11 +68,11 @@ export async function subscribeToUpdates(
   };
   
   const cleanupMessageListeners = await setupMessageListeners();
-  const cleanupConversationListeners = await setupConversationListeners();
+  const cleanupChatListeners = await setupChatListeners();
   
   // Return cleanup function
   return () => {
     cleanupMessageListeners();
-    cleanupConversationListeners();
+    cleanupChatListeners();
   };
 } 

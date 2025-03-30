@@ -1,58 +1,58 @@
 import { createSignal, onMount, createEffect, onCleanup } from "solid-js";
 import { subscribeToUpdates } from "./db-client";
 import { Sidebar, ChatView, ChatControlBar } from "./components";
-import { Message, Conversation } from "./types";
-import { loadConversations, loadMessages, createConversation, sendMessage, updateWindowTitle } from "./services/conversationService";
+import { Message, Chat } from "./types";
+import { loadChats, loadMessages, createChat, sendMessage, updateWindowTitle } from "./services/chatService";
 import "./App.css";
 
 function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
   const [inputValue, setInputValue] = createSignal("");
   const [selectedItem, setSelectedItem] = createSignal<string | null>(null);
-  const [items, setItems] = createSignal<Conversation[]>([]);
+  const [items, setItems] = createSignal<Chat[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [loadingMessages, setLoadingMessages] = createSignal(false);
-  const [newConversationName, setNewConversationName] = createSignal("");
-  const [showNewConversation, setShowNewConversation] = createSignal(false);
+  const [newChatName, setNewChatName] = createSignal("");
+  const [showNewChat, setShowNewChat] = createSignal(false);
   
-  // Load conversation list from database
-  async function fetchConversations() {
+  // Load chat list from database
+  async function fetchChats() {
     try {
       setLoading(true);
-      const conversations = await loadConversations();
-      setItems(conversations);
-      // Select the first conversation by default
-      if (conversations.length > 0 && selectedItem() === null) {
-        setSelectedItem(conversations[0].id);
+      const chats = await loadChats();
+      setItems(chats);
+      // Select the first chat by default
+      if (chats.length > 0 && selectedItem() === null) {
+        setSelectedItem(chats[0].id);
       }
     } catch (error) {
-      console.error("Error loading conversations:", error);
+      console.error("Error loading chats:", error);
     } finally {
       setLoading(false);
     }
   }
   
-  // Load messages for the selected conversation
-  async function fetchMessages(conversationId: string) {
+  // Load messages for the selected chat
+  async function fetchMessages(chatId: string) {
     try {
       setLoadingMessages(true);
-      const conversationMessages = await loadMessages(conversationId);
-      setMessages(conversationMessages);
+      const chatMessages = await loadMessages(chatId);
+      setMessages(chatMessages);
     } catch (error) {
-      console.error(`Error loading messages for conversation ${conversationId}:`, error);
+      console.error(`Error loading messages for chat ${chatId}:`, error);
     } finally {
       setLoadingMessages(false);
     }
   }
   
-  // Handle conversation selection
-  function handleSelectConversation(id: string) {
+  // Handle chat selection
+  function handleSelectChat(id: string) {
     setSelectedItem(id);
   }
   
-  // Load initial conversations
+  // Load initial chats
   onMount(async () => {
-    await fetchConversations();
+    await fetchChats();
     
     // Set up real-time updates
     const cleanup = await subscribeToUpdates(
@@ -64,15 +64,15 @@ function App() {
     onCleanup(cleanup);
   });
   
-  // Load messages when selected conversation changes
+  // Load messages when selected chat changes
   createEffect(() => {
-    const currentConversation = selectedItem();
-    if (currentConversation !== null) {
-      fetchMessages(currentConversation);
+    const currentChat = selectedItem();
+    if (currentChat !== null) {
+      fetchMessages(currentChat);
       
-      // Update window title with current conversation name
-      const selectedConversationName = items().find(item => item.id === currentConversation)?.name || "Chat";
-      updateWindowTitle(selectedConversationName);
+      // Update window title with current chat name
+      const selectedChatName = items().find(item => item.id === currentChat)?.name || "Chat";
+      updateWindowTitle(selectedChatName);
     }
   });
 
@@ -96,27 +96,27 @@ function App() {
     }
   }
   
-  async function handleCreateNewConversation(e?: Event) {
+  async function handleCreateNewChat(e?: Event) {
     if (e) e.preventDefault();
     
     try {
-      const newConversation = await createConversation(newConversationName() || "New Chat");
+      const newChat = await createChat(newChatName() || "New Chat");
       
-      // Select the newly created conversation
-      setSelectedItem(newConversation.id);
+      // Select the newly created chat
+      setSelectedItem(newChat.id);
       
       // Reset the form state
-      setNewConversationName("");
-      setShowNewConversation(false);
+      setNewChatName("");
+      setShowNewChat(false);
     } catch (error) {
-      console.error("Error creating conversation:", error);
+      console.error("Error creating chat:", error);
       
       // Display a user-friendly error message
-      const errorMessage = error instanceof Error ? error.message : "Failed to create conversation. Please try again.";
+      const errorMessage = error instanceof Error ? error.message : "Failed to create chat. Please try again.";
       alert(`Error: ${errorMessage}`);
       
-      // Try to refresh conversations in case there was an issue
-      fetchConversations();
+      // Try to refresh chats in case there was an issue
+      fetchChats();
     }
   }
 
@@ -127,13 +127,13 @@ function App() {
         items={items()}
         loading={loading()} 
         selectedItem={selectedItem()} 
-        onSelectConversation={handleSelectConversation}
-        onCreateNewConversation={handleCreateNewConversation}
+        onSelectChat={handleSelectChat}
+        onCreateNewChat={handleCreateNewChat}
       />
       
       {/* Main chat area */}
       <div class="main-content">
-        <ChatControlBar onCreateNewConversation={handleCreateNewConversation} />
+        <ChatControlBar onCreateNewChat={handleCreateNewChat} />
         
         <ChatView 
           messages={messages()}

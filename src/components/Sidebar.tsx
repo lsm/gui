@@ -1,30 +1,30 @@
 import { For } from "solid-js";
-import { Conversation } from "../types";
+import { Chat } from "../types";
 
-type SidebarProps = {
-  items: Conversation[];
+interface SidebarProps {
+  items: Chat[];
   loading: boolean;
   selectedItem: string | null;
-  onSelectConversation: (id: string) => void;
-  onCreateNewConversation: () => void;
-};
+  onSelectChat: (id: string) => void;
+  onCreateNewChat: () => void;
+}
 
 export function Sidebar(props: SidebarProps) {
   return (
-    <div class="sidebar">
+    <aside class="sidebar">
       <div class="sidebar-header">
-        <h2>Conversations</h2>
+        <h2>Chats</h2>
       </div>
       
       <div class="item-list">
         {props.loading ? (
-          <div class="loading-state">Loading conversations...</div>
+          <div class="loading-state">Loading chats...</div>
         ) : (
           <For each={props.items}>
             {(item) => (
               <div 
                 class={`item ${props.selectedItem === item.id ? 'selected' : ''}`}
-                onClick={() => props.onSelectConversation(item.id)}
+                onClick={() => props.onSelectChat(item.id)}
               >
                 <div class="item-name">{item.name}</div>
               </div>
@@ -32,6 +32,6 @@ export function Sidebar(props: SidebarProps) {
           </For>
         )}
       </div>
-    </div>
+    </aside>
   );
 } 

@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// Define structs for conversations and messages - usable directly by the API
+// Define structs for chats and messages - usable directly by the API
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Conversation {
+pub struct Chat {
     pub id: String,
     pub name: String,
     pub creator: String,
@@ -14,7 +14,7 @@ pub struct Conversation {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub id: String,
-    pub conversation_id: String,
+    pub chat_id: String,
     pub sequence_number: u64,
     pub text: String,
     pub sender: String,
@@ -23,14 +23,14 @@ pub struct Message {
 
 // Simplified API types when needed
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ApiConversation {
+pub struct ApiChat {
     pub id: String,
     pub name: String, 
     pub created_at: u64,
 }
 
-impl From<Conversation> for ApiConversation {
-    fn from(c: Conversation) -> Self {
+impl From<Chat> for ApiChat {
+    fn from(c: Chat) -> Self {
         Self {
             id: c.id,
             name: c.name,
@@ -40,7 +40,7 @@ impl From<Conversation> for ApiConversation {
 }
 
 /// Takes a name and checks and returns default name if empty.
-pub fn validate_convo_name(name: String) -> String {
+pub fn validate_chat_name(name: String) -> String {
     if name.is_empty() {
         return "No Name".to_string();
     } else {
@@ -48,27 +48,27 @@ pub fn validate_convo_name(name: String) -> String {
     }
 }
 
-// Create a new conversation record
-pub fn create_conversation_data(name: String, creator: String) -> (String, Conversation) {
-    let name = validate_convo_name(name);
+// Create a new chat record
+pub fn create_chat_data(name: String, creator: String) -> (String, Chat) {
+    let name = validate_chat_name(name);
     
-    // Generate a new UUID for the conversation
-    let conversation_id = Uuid::new_v4().to_string();
+    // Generate a new UUID for the chat
+    let chat_id = Uuid::new_v4().to_string();
     
-    // Create new conversation
-    let conversation = Conversation {
-        id: conversation_id.clone(),
+    // Create new chat
+    let chat = Chat {
+        id: chat_id.clone(),
         name,
         creator,
         created_at: get_current_timestamp(),
     };
     
-    (conversation_id, conversation)
+    (chat_id, chat)
 }
 
 // Create a new message record
 pub fn create_message_data(
-    conversation_id: String,
+    chat_id: String,
     text: String,
     sender: String,
     sequence_number: u64,
@@ -79,7 +79,7 @@ pub fn create_message_data(
     // Create message
     let message = Message {
         id: message_id.clone(),
-        conversation_id,
+        chat_id,
         sequence_number,
         text,
         sender,

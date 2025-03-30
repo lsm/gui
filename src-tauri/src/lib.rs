@@ -4,7 +4,7 @@
 mod db;
 
 // Re-export types we need for the API
-pub use db::{Conversation, Message, ApiConversation};
+pub use db::{Chat, Message, ApiChat};
 
 #[tauri::command]
 async fn test(msg: String) -> Result<String, String> {
@@ -22,47 +22,47 @@ async fn subscribe_to_db_updates() -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn get_conversations() -> Result<Vec<ApiConversation>, String> {
-    db::query_conversations()
+async fn get_chats() -> Result<Vec<ApiChat>, String> {
+    db::query_chats()
         .await
-        .map(|conversations| conversations.into_iter().map(ApiConversation::from).collect())
+        .map(|chats| chats.into_iter().map(ApiChat::from).collect())
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn create_conversation(name: String) -> Result<ApiConversation, String> {
+async fn create_chat(name: String) -> Result<ApiChat, String> {
     // Make sure the database is initialized first
     db::subscribe_to_updates()
         .await
         .map_err(|e| format!("Failed to ensure database connection: {}", e.to_string()))?;
     
-    // Call the database function to create a conversation
-    let conversation_id = db::create_conversation(name.clone())
+    // Call the database function to create a chat
+    let chat_id = db::create_chat(name.clone())
         .await
-        .map_err(|e| format!("Failed to create conversation: {}", e.to_string()))?;
+        .map_err(|e| format!("Failed to create chat: {}", e.to_string()))?;
     
     // Since we may not immediately get the update from the subscription,
     // create a temporary object to return
     let current_time = db::get_current_timestamp();
     
-    Ok(ApiConversation {
-        id: conversation_id,
+    Ok(ApiChat {
+        id: chat_id,
         name,
         created_at: current_time,
     })
 }
 
 #[tauri::command]
-async fn get_messages(conversation_id: String) -> Result<Vec<Message>, String> {
-    db::query_messages(conversation_id)
+async fn get_messages(chat_id: String) -> Result<Vec<Message>, String> {
+    db::query_messages(chat_id)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn add_message(conversation_id: String, text: String, sender_name: String) -> Result<Message, String> {
+async fn add_message(chat_id: String, text: String, sender_name: String) -> Result<Message, String> {
     // Call the database function to add a message
-    let message_id = db::add_message(conversation_id.clone(), text.clone())
+    let message_id = db::add_message(chat_id.clone(), text.clone())
         .await
         .map_err(|e| e.to_string())?;
     
@@ -72,7 +72,7 @@ async fn add_message(conversation_id: String, text: String, sender_name: String)
     
     Ok(Message {
         id: message_id,
-        conversation_id,
+        chat_id,
         text,
         sender: sender_name,
         timestamp: current_time,
@@ -100,8 +100,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_conversations, 
-            create_conversation,
+            get_chats, 
+            create_chat,
             get_messages,
             add_message,
             subscribe_to_db_updates,

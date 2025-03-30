@@ -1,14 +1,14 @@
-type ChatControlBarProps = {
-  onCreateNewConversation: () => void;
-};
+interface ChatControlBarProps {
+  onCreateNewChat: () => void;
+}
 
 export function ChatControlBar(props: ChatControlBarProps) {
   return (
     <div class="chat-control-bar">
       <div class="control-spacer"></div>
       <button 
-        class="new-conversation-btn" 
-        onClick={props.onCreateNewConversation}
+        class="new-chat-btn" 
+        onClick={props.onCreateNewChat}
         title="New Chat"
       >
         +

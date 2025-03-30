@@ -1,4 +1,4 @@
-use crate::db::schema::{Conversation, Message, create_conversation_data, create_message_data};
+use crate::db::schema::{Chat, Message, create_chat_data, create_message_data};
 use surrealdb::engine::local::{RocksDb, Db};
 use surrealdb::Surreal;
 use tokio::sync::OnceCell;
@@ -38,21 +38,21 @@ pub async fn init_database() -> Result<(), Box<dyn std::error::Error>> {
     
     // Create schema for the tables
     db.query(r#"
-        DEFINE TABLE conversation SCHEMAFULL;
-        DEFINE FIELD id ON conversation TYPE string;
-        DEFINE FIELD name ON conversation TYPE string;
-        DEFINE FIELD creator ON conversation TYPE string;
-        DEFINE FIELD created_at ON conversation TYPE number;
+        DEFINE TABLE chat SCHEMAFULL;
+        DEFINE FIELD id ON chat TYPE string;
+        DEFINE FIELD name ON chat TYPE string;
+        DEFINE FIELD creator ON chat TYPE string;
+        DEFINE FIELD created_at ON chat TYPE number;
         
         DEFINE TABLE message SCHEMAFULL;
         DEFINE FIELD id ON message TYPE string;
-        DEFINE FIELD conversation_id ON message TYPE string;
+        DEFINE FIELD chat_id ON message TYPE string;
         DEFINE FIELD sequence_number ON message TYPE number;
         DEFINE FIELD text ON message TYPE string;
         DEFINE FIELD sender ON message TYPE string;
         DEFINE FIELD timestamp ON message TYPE number;
         
-        DEFINE INDEX conversation_id ON TABLE message FIELDS conversation_id;
+        DEFINE INDEX chat_id ON TABLE message FIELDS chat_id;
     "#).await?;
     
     // Set the database instance
@@ -127,25 +127,25 @@ pub async fn subscribe_to_updates() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-// Query all conversations
-pub async fn query_conversations() -> Result<Vec<Conversation>, Box<dyn std::error::Error>> {
+// Query all chats
+pub async fn query_chats() -> Result<Vec<Chat>, Box<dyn std::error::Error>> {
     let db = get_db().await?;
     
-    // Query all conversations
-    let conversations: Vec<Conversation> = db.select("conversation").await?;
+    // Query all chats
+    let chats: Vec<Chat> = db.select("chat").await?;
     
-    Ok(conversations)
+    Ok(chats)
 }
 
-// Query messages for a specific conversation
-pub async fn query_messages(conversation_id: String) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+// Query messages for a specific chat
+pub async fn query_messages(chat_id: String) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
     let db = get_db().await?;
     
-    // Clone the conversation_id for the query
-    let id_for_query = conversation_id.clone();
+    // Clone the chat_id for the query
+    let id_for_query = chat_id.clone();
     
-    // Query messages for the given conversation
-    let mut result = db.query("SELECT * FROM message WHERE conversation_id = $id ORDER BY sequence_number")
+    // Query messages for the given chat
+    let mut result = db.query("SELECT * FROM message WHERE chat_id = $id ORDER BY sequence_number")
         .bind(("id", id_for_query))
         .await?;
     let messages: Vec<Message> = result.take(0)?;
@@ -153,60 +153,60 @@ pub async fn query_messages(conversation_id: String) -> Result<Vec<Message>, Box
     Ok(messages)
 }
 
-// Create a new conversation
-pub async fn create_conversation(name: String) -> Result<String, Box<dyn std::error::Error>> {
+// Create a new chat
+pub async fn create_chat(name: String) -> Result<String, Box<dyn std::error::Error>> {
     // Get DB connection, this will auto-reinitialize if needed 
     let db = get_db().await?;
     
     // Generate a pseudo-random user ID
     let user_id = format!("user-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("anonymous"));
     
-    // Create a new conversation
-    let (conversation_id, conversation) = create_conversation_data(name, user_id);
+    // Create a new chat
+    let (chat_id, chat) = create_chat_data(name, user_id);
     
     // Insert into the database with error tracing
-    println!("Attempting to create conversation in database");
-    let create_result: Result<Option<Conversation>, surrealdb::Error> = db.create(("conversation", conversation_id.clone()))
-        .content(conversation)
+    println!("Attempting to create chat in database");
+    let create_result: Result<Option<Chat>, surrealdb::Error> = db.create(("chat", chat_id.clone()))
+        .content(chat)
         .await;
         
     match create_result {
         Ok(_) => {
-            println!("Created conversation with ID: {}", conversation_id);
-            Ok(conversation_id)
+            println!("Created chat with ID: {}", chat_id);
+            Ok(chat_id)
         },
         Err(e) => {
-            eprintln!("Failed to create conversation: {}", e);
+            eprintln!("Failed to create chat: {}", e);
             Err(e.into())
         }
     }
 }
 
 // Add a new message
-pub async fn add_message(conversation_id: String, text: String) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dyn std::error::Error>> {
     // Get DB connection with auto-reconnect if needed
     let db = get_db().await?;
     
-    // Clone the conversation_id for checking and queries
-    let id_for_check = conversation_id.clone();
+    // Clone the chat_id for checking and queries
+    let id_for_check = chat_id.clone();
     
-    // Check if conversation exists
-    println!("Checking if conversation exists: {}", id_for_check);
-    let conversation_result: Result<Option<Conversation>, surrealdb::Error> = db.select(("conversation", id_for_check)).await;
-    let _conversation = match conversation_result {
-        Ok(maybe_convo) => maybe_convo.ok_or("Conversation not found")?,
+    // Check if chat exists
+    println!("Checking if chat exists: {}", id_for_check);
+    let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select(("chat", id_for_check)).await;
+    let _chat = match chat_result {
+        Ok(maybe_chat) => maybe_chat.ok_or("Chat not found")?,
         Err(e) => {
-            eprintln!("Error checking conversation: {}", e);
-            return Err(format!("Failed to verify conversation: {}", e).into());
+            eprintln!("Error checking chat: {}", e);
+            return Err(format!("Failed to verify chat: {}", e).into());
         }
     };
     
     // Clone for querying messages
-    let id_for_query = conversation_id.clone();
+    let id_for_query = chat_id.clone();
     
     // Get the next sequence number
-    println!("Querying messages for conversation: {}", id_for_query);
-    let query_result = db.query("SELECT * FROM message WHERE conversation_id = $id")
+    println!("Querying messages for chat: {}", id_for_query);
+    let query_result = db.query("SELECT * FROM message WHERE chat_id = $id")
         .bind(("id", id_for_query))
         .await;
     
@@ -231,7 +231,7 @@ pub async fn add_message(conversation_id: String, text: String) -> Result<String
     
     // Create a new message
     let (message_id, message) = create_message_data(
-        conversation_id,
+        chat_id,
         text,
         sender,
         sequence_number
