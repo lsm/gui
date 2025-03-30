@@ -1,22 +1,21 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
-// Import your schema and client modules
-mod db_schema;
-mod db_client;
+// Import db module
+mod db;
 
 // Re-export types we need for the API
-pub use db_schema::{Conversation, Message, ApiConversation};
+pub use db::{Conversation, Message, ApiConversation};
 
 #[tauri::command]
 async fn subscribe_to_db_updates() -> Result<(), String> {
-    db_client::subscribe_to_updates()
+    db::subscribe_to_updates()
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn get_conversations() -> Result<Vec<ApiConversation>, String> {
-    db_client::query_conversations()
+    db::query_conversations()
         .await
         .map(|conversations| conversations.into_iter().map(ApiConversation::from).collect())
         .map_err(|e| e.to_string())
@@ -25,13 +24,13 @@ async fn get_conversations() -> Result<Vec<ApiConversation>, String> {
 #[tauri::command]
 async fn create_conversation(name: String) -> Result<ApiConversation, String> {
     // Call the database function to create a conversation
-    let conversation_id = db_client::create_conversation(name.clone())
+    let conversation_id = db::create_conversation(name.clone())
         .await
         .map_err(|e| e.to_string())?;
     
     // Since we may not immediately get the update from the subscription,
     // create a temporary object to return
-    let current_time = db_schema::get_current_timestamp();
+    let current_time = db::get_current_timestamp();
     
     Ok(ApiConversation {
         id: conversation_id,
@@ -42,7 +41,7 @@ async fn create_conversation(name: String) -> Result<ApiConversation, String> {
 
 #[tauri::command]
 async fn get_messages(conversation_id: String) -> Result<Vec<Message>, String> {
-    db_client::query_messages(conversation_id)
+    db::query_messages(conversation_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -50,13 +49,13 @@ async fn get_messages(conversation_id: String) -> Result<Vec<Message>, String> {
 #[tauri::command]
 async fn add_message(conversation_id: String, text: String, sender_name: String) -> Result<Message, String> {
     // Call the database function to add a message
-    let message_id = db_client::add_message(conversation_id.clone(), text.clone())
+    let message_id = db::add_message(conversation_id.clone(), text.clone())
         .await
         .map_err(|e| e.to_string())?;
     
     // Since we may not immediately get the update from the subscription,
     // create a temporary object to return
-    let current_time = db_schema::get_current_timestamp();
+    let current_time = db::get_current_timestamp();
     
     Ok(Message {
         id: message_id,
@@ -77,7 +76,7 @@ pub fn run() {
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(async {
-                    db_client::init_database().await.expect("Failed to initialize database");
+                    db::init_database().await.expect("Failed to initialize database");
                 });
             
             Ok(())

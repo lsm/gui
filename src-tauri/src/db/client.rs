@@ -1,4 +1,4 @@
-use crate::db_schema::{Conversation, Message, create_conversation_data, create_message_data};
+use crate::db::schema::{Conversation, Message, create_conversation_data, create_message_data};
 use surrealdb::engine::local::{RocksDb, Db};
 use surrealdb::Surreal;
 use tokio::sync::OnceCell;
