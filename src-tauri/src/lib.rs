@@ -5,6 +5,7 @@ mod db;
 
 // Re-export types we need for the API
 pub use db::{Chat, Message, ApiChat, ApiMessage};
+use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
 async fn test(msg: String) -> Result<String, String> {
@@ -16,7 +17,7 @@ async fn test(msg: String) -> Result<String, String> {
 
 #[tauri::command]
 async fn subscribe_to_db_updates() -> Result<(), String> {
-    db::subscribe_to_updates()
+    db::ensure_db_connection()
         .await
         .map_err(|e| e.to_string())
 }
@@ -32,7 +33,7 @@ async fn get_chats() -> Result<Vec<ApiChat>, String> {
 #[tauri::command]
 async fn create_chat(name: String) -> Result<ApiChat, String> {
     // Make sure the database is initialized first
-    db::subscribe_to_updates()
+    db::ensure_db_connection()
         .await
         .map_err(|e| format!("Failed to ensure database connection: {}", e.to_string()))?;
     
@@ -81,6 +82,25 @@ async fn add_message(chat_id: String, text: String, sender_name: String) -> Resu
     })
 }
 
+// New command to subscribe to chat updates
+#[tauri::command]
+async fn subscribe_to_chat_updates(window: AppHandle) -> Result<(), String> {
+    // Try to get a receiver for chat updates
+    match db::get_chat_update_receiver() {
+        Ok(mut receiver) => {
+            // Start a background task to forward updates to the frontend
+            tokio::spawn(async move {
+                while let Ok(chat) = receiver.recv().await {
+                    // Emit the chat update to all windows
+                    let _ = window.emit("chat-update", chat);
+                }
+            });
+            Ok(())
+        },
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -106,6 +126,7 @@ pub fn run() {
             get_messages,
             add_message,
             subscribe_to_db_updates,
+            subscribe_to_chat_updates,
             test
         ])
         .run(tauri::generate_context!())

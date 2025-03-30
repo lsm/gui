@@ -1,9 +1,13 @@
-use crate::db::schema::{Chat, Message, create_chat_data, create_message_data};
+use crate::db::schema::{Chat, Message, create_chat_data, create_message_data, ApiChat};
 use surrealdb::engine::local::{RocksDb, Db};
 use surrealdb::Surreal;
-use tokio::sync::OnceCell;
+use tokio::sync::{OnceCell, broadcast};
 use uuid::Uuid;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
+use std::time::Duration;
+use std::error::Error;
 
 // Define namespace and database name
 const NAMESPACE: &str = "chat_app";
@@ -13,8 +17,11 @@ const DB_PATH: &str = "chat_data";
 // Static instance for the SurrealDB client
 static DB: OnceCell<Surreal<Db>> = OnceCell::const_new();
 
+// Channels for real-time updates
+static CHAT_UPDATES: Lazy<Mutex<Option<broadcast::Sender<ApiChat>>>> = Lazy::new(|| Mutex::new(None));
+
 // Initialize the database client
-pub async fn init_database() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_database() -> Result<(), Box<dyn Error + Send + Sync>> {
     // If the DB is already initialized, just verify the connection
     if DB.initialized() {
         // Test that the connection is still valid by running a simple query
@@ -59,6 +66,15 @@ pub async fn init_database() -> Result<(), Box<dyn std::error::Error>> {
     match DB.set(db) {
         Ok(_) => {
             println!("SurrealDB initialized successfully");
+            
+            // Initialize broadcast channel for chat updates
+            let (sender, _) = broadcast::channel::<ApiChat>(100);
+            let mut chat_updates = CHAT_UPDATES.lock().unwrap();
+            *chat_updates = Some(sender);
+            
+            // Initialize chat polling in a separate function
+            initialize_chat_polling();
+            
             Ok(())
         },
         Err(_) => {
@@ -67,8 +83,68 @@ pub async fn init_database() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+// Initialize chat polling without awaiting in the function
+fn initialize_chat_polling() {
+    tokio::spawn(async {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        let mut last_chats: Vec<Chat> = Vec::new();
+        
+        loop {
+            interval.tick().await;
+            
+            // Skip error handling for the main polling function to avoid Send issues
+            if let Some(db) = DB.get() {
+                match db.select::<Vec<Chat>>("chat").await {
+                    Ok(current_chats) => {
+                        // Check for new chats that weren't in the last list
+                        for chat in &current_chats {
+                            if !last_chats.iter().any(|c| c.id == chat.id) {
+                                // Found a new chat, broadcast it
+                                if let Ok(sender) = get_chat_update_sender() {
+                                    let api_chat = ApiChat {
+                                        id: chat.id.as_ref().map_or_else(
+                                            || "unknown".to_string(),
+                                            |thing| thing.id.to_string(),
+                                        ),
+                                        name: chat.name.clone(),
+                                        created_at: chat.created_at,
+                                    };
+                                    
+                                    let _ = sender.send(api_chat);
+                                    println!("Chat update broadcasted");
+                                }
+                            }
+                        }
+                        
+                        // Update the last_chats list
+                        last_chats = current_chats;
+                    },
+                    Err(e) => {
+                        eprintln!("Error polling chats: {}", e);
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Get a receiver for chat updates
+pub fn get_chat_update_receiver() -> Result<broadcast::Receiver<ApiChat>, Box<dyn Error + Send + Sync>> {
+    let sender = get_chat_update_sender()?;
+    Ok(sender.subscribe())
+}
+
+// Helper to get the chat update sender
+fn get_chat_update_sender() -> Result<broadcast::Sender<ApiChat>, Box<dyn Error + Send + Sync>> {
+    let chat_updates = CHAT_UPDATES.lock().unwrap();
+    match &*chat_updates {
+        Some(sender) => Ok(sender.clone()),
+        None => Err("Chat updates channel not initialized".into()),
+    }
+}
+
 // Get database instance with auto-reconnect if needed
-pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn std::error::Error>> {
+pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn Error + Send + Sync>> {
     if !DB.initialized() {
         // Initialize database if it hasn't been initialized yet
         init_database().await?;
@@ -95,7 +171,7 @@ pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn std::error::Error>
 }
 
 // Ensure database connection or reinitialize
-pub async fn subscribe_to_updates() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn ensure_db_connection() -> Result<(), Box<dyn Error + Send + Sync>> {
     // First, check if the database is initialized
     if !DB.initialized() {
         println!("Database not initialized, initializing now");
@@ -128,7 +204,7 @@ pub async fn subscribe_to_updates() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // Query all chats
-pub async fn query_chats() -> Result<Vec<Chat>, Box<dyn std::error::Error>> {
+pub async fn query_chats() -> Result<Vec<Chat>, Box<dyn Error + Send + Sync>> {
     let db = get_db().await?;
     
     // Query all chats
@@ -138,7 +214,7 @@ pub async fn query_chats() -> Result<Vec<Chat>, Box<dyn std::error::Error>> {
 }
 
 // Query messages for a specific chat
-pub async fn query_messages(chat_id: String) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+pub async fn query_messages(chat_id: String) -> Result<Vec<Message>, Box<dyn Error + Send + Sync>> {
     let db = get_db().await?;
     
     // Query messages for the given chat
@@ -151,7 +227,7 @@ pub async fn query_messages(chat_id: String) -> Result<Vec<Message>, Box<dyn std
 }
 
 // Create a new chat
-pub async fn create_chat(name: String) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn create_chat(name: String) -> Result<String, Box<dyn Error + Send + Sync>> {
     // Get DB connection, this will auto-reinitialize if needed 
     let db = get_db().await?;
     
@@ -181,7 +257,7 @@ pub async fn create_chat(name: String) -> Result<String, Box<dyn std::error::Err
 }
 
 // Add a new message
-pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dyn Error + Send + Sync>> {
     // Get DB connection with auto-reconnect if needed
     let db = get_db().await?;
     

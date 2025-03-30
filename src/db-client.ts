@@ -9,8 +9,19 @@ export async function subscribeToUpdates(
   // Set up subscription to database updates
   await invoke("subscribe_to_db_updates");
   
-  // Listen for database events - different versions of SpaceTimeDB use different event naming
-  // We'll set up multiple listeners to handle different possibilities
+  // Set up subscription to chat updates via the new mechanism
+  await invoke("subscribe_to_chat_updates");
+  
+  // Listen for chat update events
+  const chatUpdateUnsubscribe = await listen("chat-update", (event) => {
+    console.log("Received chat update:", event);
+    
+    // Refresh the chat list when we get an update
+    invoke("get_chats")
+      .then((chats) => setChats(chats as any[]));
+  });
+  
+  // Listen for database events for messages
   const setupMessageListeners = async () => {
     const listeners: (() => void)[] = [];
     
@@ -40,39 +51,11 @@ export async function subscribeToUpdates(
     return () => listeners.forEach(unsub => unsub());
   };
   
-  const setupChatListeners = async () => {
-    const listeners: (() => void)[] = [];
-    
-    // Try different event name formats
-    const chatEventNames = [
-      "spacetimedb:tableupdate:chat", 
-      "spacetimedb:tableupdate:Chat",
-      "table:Chat", 
-      "table:chat"
-    ];
-    
-    for (const eventName of chatEventNames) {
-      try {
-        const unsubscribe = await listen(eventName, (event) => {
-          invoke("get_chats")
-            .then((chats) => setChats(chats as any[]));
-        });
-        listeners.push(unsubscribe);
-        console.log(`Successfully subscribed to ${eventName}`);
-      } catch (e) {
-        console.log(`Failed to subscribe to ${eventName}: ${e}`);
-      }
-    }
-    
-    return () => listeners.forEach(unsub => unsub());
-  };
-  
   const cleanupMessageListeners = await setupMessageListeners();
-  const cleanupChatListeners = await setupChatListeners();
   
   // Return cleanup function
   return () => {
+    chatUpdateUnsubscribe();
     cleanupMessageListeners();
-    cleanupChatListeners();
   };
 } 
