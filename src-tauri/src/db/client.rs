@@ -6,8 +6,8 @@ use uuid::Uuid;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
-use std::time::Duration;
 use std::error::Error;
+use futures::StreamExt;
 
 // Define namespace and database name
 const NAMESPACE: &str = "chat_app";
@@ -72,8 +72,11 @@ pub async fn init_database() -> Result<(), Box<dyn Error + Send + Sync>> {
             let mut chat_updates = CHAT_UPDATES.lock().unwrap();
             *chat_updates = Some(sender);
             
-            // Initialize chat polling in a separate function
-            initialize_chat_polling();
+            // Initialize chat live query
+            initialize_chat_live_query();
+            
+            // Initialize message live query if needed
+            // initialize_message_live_query();
             
             Ok(())
         },
@@ -83,24 +86,24 @@ pub async fn init_database() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 }
 
-// Initialize chat polling without awaiting in the function
-fn initialize_chat_polling() {
+// Initialize chat live query
+fn initialize_chat_live_query() {
     tokio::spawn(async {
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        let mut last_chats: Vec<Chat> = Vec::new();
-        
-        loop {
-            interval.tick().await;
-            
-            // Skip error handling for the main polling function to avoid Send issues
-            if let Some(db) = DB.get() {
-                match db.select::<Vec<Chat>>("chat").await {
-                    Ok(current_chats) => {
-                        // Check for new chats that weren't in the last list
-                        for chat in &current_chats {
-                            if !last_chats.iter().any(|c| c.id == chat.id) {
-                                // Found a new chat, broadcast it
+        // Skip error handling in the spawn to avoid Send issues
+        if let Some(db) = DB.get() {
+            // Create a live query on the chat table with explicit type annotation
+            match db.select::<Vec<Chat>>("chat").live().await {
+                Ok(mut stream) => {
+                    println!("Started live query for chat table");
+                    
+                    // Process notifications using the Stream trait
+                    while let Some(notification) = stream.next().await {
+                        match notification {
+                            Ok(notification) => {
+                                // Process the notification based on its action
                                 if let Ok(sender) = get_chat_update_sender() {
+                                    // Convert the chat notification to ApiChat with proper type annotation
+                                    let chat: Chat = notification.data;
                                     let api_chat = ApiChat {
                                         id: chat.id.as_ref().map_or_else(
                                             || "unknown".to_string(),
@@ -110,18 +113,54 @@ fn initialize_chat_polling() {
                                         created_at: chat.created_at,
                                     };
                                     
+                                    // Print first then send to avoid borrow after move
+                                    println!("Chat update broadcasted via live query: {}", api_chat.name);
+                                    
+                                    // Send the update through the broadcast channel
                                     let _ = sender.send(api_chat);
-                                    println!("Chat update broadcasted");
                                 }
+                            },
+                            Err(e) => {
+                                eprintln!("Error in live query notification: {}", e);
                             }
                         }
-                        
-                        // Update the last_chats list
-                        last_chats = current_chats;
-                    },
-                    Err(e) => {
-                        eprintln!("Error polling chats: {}", e);
                     }
+                },
+                Err(e) => {
+                    eprintln!("Failed to set up live query for chat table: {}", e);
+                }
+            }
+        }
+    });
+}
+
+// Initialize message live query if needed
+#[allow(dead_code)]
+fn initialize_message_live_query() {
+    tokio::spawn(async {
+        // Skip error handling in the spawn to avoid Send issues
+        if let Some(db) = DB.get() {
+            // Create a live query on the message table with explicit type annotation
+            match db.select::<Vec<Message>>("message").live().await {
+                Ok(mut stream) => {
+                    println!("Started live query for message table");
+                    
+                    // Process notifications using the Stream trait
+                    while let Some(notification) = stream.next().await {
+                        match notification {
+                            Ok(_notification) => {
+                                // Process message notifications if needed
+                                // This would require a similar broadcast channel for messages
+                                println!("Message update received");
+                            },
+                            Err(e) => {
+                                eprintln!("Error in message live query notification: {}", e);
+                            }
+                        }
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Failed to set up live query for message table: {}", e);
                 }
             }
         }
