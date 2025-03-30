@@ -42,15 +42,23 @@ html, body {
   box-shadow: none;
 }
 
-.sidebar h2 {
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-header h2 {
+  padding: 0;
   margin: 0;
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: rgba(236, 236, 241, 0.6);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-weight: 500;
+  border-bottom: none;
 }
 
 .item-list {
@@ -185,14 +193,14 @@ html, body {
   text-align: left;
 }
 
-/* 确保消息内容有适当宽度 */
+/* Ensure message content has appropriate width */
 .message-content {
   word-break: break-word;
   line-height: 1.5;
   max-width: 90%;
 }
 
-/* 移除AI消息的背景色 */
+/* Remove AI message background color */
 .message.ai {
   background-color: transparent;
 }
@@ -383,4 +391,75 @@ button {
 
 #greet-input {
   margin-right: 5px;
+}
+
+.loading-state {
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: center;
+  font-style: italic;
+}
+
+.new-conversation-btn {
+  background-color: transparent;
+  color: rgba(236, 236, 241, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.new-conversation-btn:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+  color: rgba(236, 236, 241, 0.9);
+}
+
+.new-conversation-form {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.new-conversation-form input {
+  background-color: rgba(50, 50, 50, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(236, 236, 241, 0.9);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.new-conversation-form button {
+  background-color: #10a37f;
+  color: white;
+  border: none;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.new-conversation-form button:hover {
+  background-color: #0c8667;
+}
+
+.sidebar h2 {
+  padding: 16px;
+  margin: 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(236, 236, 241, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 500;
 }

@@ -1,4 +1,4 @@
-import { createSignal, For } from "solid-js";
+import { createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -9,7 +9,7 @@ type Message = {
   sender: "user" | "ai";
 };
 
-type Item = {
+type Conversation = {
   id: number;
   name: string;
 };
@@ -18,15 +18,31 @@ function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
   const [inputValue, setInputValue] = createSignal("");
   const [selectedItem, setSelectedItem] = createSignal<number | null>(null);
+  const [items, setItems] = createSignal<Conversation[]>([]);
+  const [loading, setLoading] = createSignal(true);
+  const [newConversationName, setNewConversationName] = createSignal("");
+  const [showNewConversation, setShowNewConversation] = createSignal(false);
   
-  // Sample items for the sidebar - replace with your actual data
-  const [items] = createSignal<Item[]>([
-    { id: 1, name: "Chat about AI" },
-    { id: 2, name: "Project planning" },
-    { id: 3, name: "Travel ideas" },
-    { id: 4, name: "Book recommendations" },
-    { id: 5, name: "Coding help" },
-  ]);
+  // Load conversation list from Rust API
+  async function loadConversations() {
+    try {
+      setLoading(true);
+      const conversations = await invoke<Conversation[]>("get_conversations");
+      setItems(conversations);
+      // Select the first conversation by default
+      if (conversations.length > 0 && selectedItem() === null) {
+        setSelectedItem(conversations[0].id);
+      }
+    } catch (error) {
+      console.error("Error loading conversations:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  onMount(() => {
+    loadConversations();
+  });
 
   async function sendMessage(e: Event) {
     e.preventDefault();
@@ -60,23 +76,73 @@ function App() {
       console.error("Error sending message:", error);
     }
   }
+  
+  async function createNewConversation(e: Event) {
+    e.preventDefault();
+    
+    if (!newConversationName().trim()) return;
+    
+    try {
+      const newConversation = await invoke<Conversation>("create_conversation", { 
+        name: newConversationName() 
+      });
+      
+      // Reload the conversation list
+      await loadConversations();
+      
+      // Select the newly created conversation
+      setSelectedItem(newConversation.id);
+      
+      // Reset the form
+      setNewConversationName("");
+      setShowNewConversation(false);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+    }
+  }
 
   return (
     <div class="app-container">
       {/* Sidebar */}
       <div class="sidebar">
-        <h2>Conversations</h2>
+        <div class="sidebar-header">
+          <h2>Conversations</h2>
+          <button 
+            class="new-conversation-btn" 
+            onClick={() => setShowNewConversation(!showNewConversation())}
+            title="New Conversation"
+          >
+            +
+          </button>
+        </div>
+        
+        <Show when={showNewConversation()}>
+          <form class="new-conversation-form" onSubmit={createNewConversation}>
+            <input
+              type="text"
+              value={newConversationName()}
+              onInput={(e) => setNewConversationName(e.currentTarget.value)}
+              placeholder="Conversation name..."
+            />
+            <button type="submit">Create</button>
+          </form>
+        </Show>
+        
         <div class="item-list">
-          <For each={items()}>
-            {(item) => (
-              <div 
-                class={`item ${selectedItem() === item.id ? 'selected' : ''}`}
-                onClick={() => setSelectedItem(item.id)}
-              >
-                <div class="item-name">{item.name}</div>
-              </div>
-            )}
-          </For>
+          {loading() ? (
+            <div class="loading-state">Loading conversations...</div>
+          ) : (
+            <For each={items()}>
+              {(item) => (
+                <div 
+                  class={`item ${selectedItem() === item.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedItem(item.id)}
+                >
+                  <div class="item-name">{item.name}</div>
+                </div>
+              )}
+            </For>
+          )}
         </div>
       </div>
       
