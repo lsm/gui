@@ -12,7 +12,6 @@ type Message = {
 type Item = {
   id: number;
   name: string;
-  preview: string;
 };
 
 function App() {
@@ -22,11 +21,11 @@ function App() {
   
   // Sample items for the sidebar - replace with your actual data
   const [items] = createSignal<Item[]>([
-    { id: 1, name: "Item 1", preview: "Preview 1" },
-    { id: 2, name: "Item 2", preview: "Preview 2" },
-    { id: 3, name: "Item 3", preview: "Preview 3" },
-    { id: 4, name: "Item 4", preview: "Preview 4" },
-    { id: 5, name: "Item 5", preview: "Preview 5" },
+    { id: 1, name: "Chat about AI" },
+    { id: 2, name: "Project planning" },
+    { id: 3, name: "Travel ideas" },
+    { id: 4, name: "Book recommendations" },
+    { id: 5, name: "Coding help" },
   ]);
 
   async function sendMessage(e: Event) {
@@ -66,7 +65,7 @@ function App() {
     <div class="app-container">
       {/* Sidebar */}
       <div class="sidebar">
-        <h2>Items</h2>
+        <h2>Conversations</h2>
         <div class="item-list">
           <For each={items()}>
             {(item) => (
@@ -74,7 +73,6 @@ function App() {
                 class={`item ${selectedItem() === item.id ? 'selected' : ''}`}
                 onClick={() => setSelectedItem(item.id)}
               >
-                <div class="item-preview">{item.preview}</div>
                 <div class="item-name">{item.name}</div>
               </div>
             )}
@@ -103,7 +101,7 @@ function App() {
               onInput={(e) => setInputValue(e.currentTarget.value)}
               placeholder="Type your message here..."
             />
-            <button type="submit">Send</button>
+            <button type="submit"><span>Send</span></button>
           </form>
         </div>
       </div>
