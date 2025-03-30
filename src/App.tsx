@@ -1,30 +1,36 @@
-import { createSignal, For, onMount, Show, createEffect } from "solid-js";
+import { createSignal, For, onMount, Show, createEffect, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { Window } from "@tauri-apps/api/window";
+import { subscribeToUpdates } from "./db-client";
 import "./App.css";
 
 // Define types for our application
 type Message = {
-  id: number;
+  id: string;
+  conversation_id: string;
   text: string;
-  sender: "user" | "ai";
+  sender: string;
+  timestamp: number;
+  sequence_number: number;
 };
 
 type Conversation = {
-  id: number;
+  id: string;
   name: string;
+  created_at: number;
 };
 
 function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
   const [inputValue, setInputValue] = createSignal("");
-  const [selectedItem, setSelectedItem] = createSignal<number | null>(null);
+  const [selectedItem, setSelectedItem] = createSignal<string | null>(null);
   const [items, setItems] = createSignal<Conversation[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [loadingMessages, setLoadingMessages] = createSignal(false);
   const [newConversationName, setNewConversationName] = createSignal("");
   const [showNewConversation, setShowNewConversation] = createSignal(false);
   
-  // Load conversation list from Rust API
+  // Load conversation list from database
   async function loadConversations() {
     try {
       setLoading(true);
@@ -42,10 +48,10 @@ function App() {
   }
   
   // Load messages for the selected conversation
-  async function loadMessages(conversationId: number) {
+  async function loadMessages(conversationId: string) {
     try {
       setLoadingMessages(true);
-      const conversationMessages = await invoke<Message[]>("get_messages", { conversationId });
+      const conversationMessages = await invoke<Message[]>("get_messages", { conversation_id: conversationId });
       setMessages(conversationMessages);
     } catch (error) {
       console.error(`Error loading messages for conversation ${conversationId}:`, error);
@@ -55,13 +61,22 @@ function App() {
   }
   
   // Handle conversation selection
-  function handleSelectConversation(id: number) {
+  function handleSelectConversation(id: string) {
     setSelectedItem(id);
   }
   
   // Load initial conversations
-  onMount(() => {
-    loadConversations();
+  onMount(async () => {
+    await loadConversations();
+    
+    // Set up real-time updates
+    const cleanup = await subscribeToUpdates(
+      setMessages,
+      setItems,
+      selectedItem()
+    );
+    
+    onCleanup(cleanup);
   });
   
   // Load messages when selected conversation changes
@@ -69,8 +84,22 @@ function App() {
     const currentConversation = selectedItem();
     if (currentConversation !== null) {
       loadMessages(currentConversation);
+      
+      // Update window title with current conversation name
+      const selectedConversationName = items().find(item => item.id === currentConversation)?.name || "Chat";
+      updateWindowTitle(selectedConversationName);
     }
   });
+  
+  // Update the native window title
+  async function updateWindowTitle(title: string) {
+    try {
+      const currentWindow = Window.getCurrent();
+      await currentWindow.setTitle(`${title} - Chat App`);
+    } catch (error) {
+      console.error("Error updating window title:", error);
+    }
+  }
 
   async function sendMessage(e: Event) {
     e.preventDefault();
@@ -80,9 +109,9 @@ function App() {
     try {
       // Add user message to chat
       const userMessage = await invoke<Message>("add_message", {
-        conversationId: selectedItem(),
+        conversation_id: selectedItem(),
         text: inputValue(),
-        sender: "user"
+        sender_name: "user"
       });
       
       setMessages([...messages(), userMessage]);
@@ -91,9 +120,9 @@ function App() {
       // For demo purposes, we'll use a simple response
       // In a real app, you'd call your AI service here
       const aiResponse = await invoke<Message>("add_message", {
-        conversationId: selectedItem(),
+        conversation_id: selectedItem(),
         text: `You said: "${userMessage.text}". This is a simulated AI response.`,
-        sender: "ai"
+        sender_name: "ai"
       });
       
       setMessages([...messages(), aiResponse]);
@@ -102,23 +131,18 @@ function App() {
     }
   }
   
-  async function createNewConversation(e: Event) {
-    e.preventDefault();
-    
-    if (!newConversationName().trim()) return;
+  async function createNewConversation(e?: Event) {
+    if (e) e.preventDefault();
     
     try {
       const newConversation = await invoke<Conversation>("create_conversation", { 
-        name: newConversationName() 
+        name: newConversationName() || "New Chat" 
       });
-      
-      // Reload the conversation list
-      await loadConversations();
       
       // Select the newly created conversation
       setSelectedItem(newConversation.id);
       
-      // Reset the form
+      // Reset the form state
       setNewConversationName("");
       setShowNewConversation(false);
     } catch (error) {
@@ -132,26 +156,7 @@ function App() {
       <div class="sidebar">
         <div class="sidebar-header">
           <h2>Conversations</h2>
-          <button 
-            class="new-conversation-btn" 
-            onClick={() => setShowNewConversation(!showNewConversation())}
-            title="New Conversation"
-          >
-            +
-          </button>
         </div>
-        
-        <Show when={showNewConversation()}>
-          <form class="new-conversation-form" onSubmit={createNewConversation}>
-            <input
-              type="text"
-              value={newConversationName()}
-              onInput={(e) => setNewConversationName(e.currentTarget.value)}
-              placeholder="Conversation name..."
-            />
-            <button type="submit">Create</button>
-          </form>
-        </Show>
         
         <div class="item-list">
           {loading() ? (
@@ -173,6 +178,18 @@ function App() {
       
       {/* Main chat area */}
       <div class="main-content">
+        {/* Chat control bar */}
+        <div class="chat-control-bar">
+          <div class="control-spacer"></div>
+          <button 
+            class="new-conversation-btn" 
+            onClick={() => createNewConversation()}
+            title="New Chat"
+          >
+            +
+          </button>
+        </div>
+        
         <div class="chat-container">
           <div class="chat-messages">
             {loadingMessages() ? (
@@ -197,9 +214,6 @@ function App() {
               placeholder="Type your message here..."
               disabled={selectedItem() === null}
             />
-            <button type="submit" disabled={selectedItem() === null}>
-              <span>Send</span>
-            </button>
           </form>
         </div>
       </div>

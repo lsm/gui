@@ -1,158 +1,146 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+use spacetimedb::Identity;
 
-// Conversation struct to represent a chat conversation
+// Import your schema and client modules
+mod db_schema;
+mod db_client;
+
+// Public API types that match the internal schema types but with simpler types for the frontend
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Conversation {
-    id: u32,
-    name: String,
+    pub id: String,
+    pub name: String,
+    pub created_at: u64,
 }
 
-// Message struct to represent a chat message
+impl From<db_schema::Conversation> for Conversation {
+    fn from(c: db_schema::Conversation) -> Self {
+        Self {
+            id: c.id,
+            name: c.name,
+            created_at: c.created_at,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Message {
-    id: u32,
-    text: String,
-    sender: String, // "user" or "ai"
+    pub id: String,
+    pub conversation_id: String,
+    pub text: String,
+    pub sender: String,
+    pub timestamp: u64,
+    pub sequence_number: u64,
 }
 
-// In-memory storage for conversations
-static CONVERSATIONS: Lazy<Mutex<Vec<Conversation>>> = Lazy::new(|| {
-    Mutex::new(vec![
-        Conversation { id: 1, name: "Chat about AI".to_string() },
-        Conversation { id: 2, name: "Project planning".to_string() },
-        Conversation { id: 3, name: "Travel ideas".to_string() },
-        Conversation { id: 4, name: "Book recommendations".to_string() },
-        Conversation { id: 5, name: "Coding help".to_string() },
-    ])
-});
+impl From<db_schema::Message> for Message {
+    fn from(m: db_schema::Message) -> Self {
+        Self {
+            id: m.id,
+            conversation_id: m.conversation_id,
+            text: m.text,
+            sender: format!("{}", m.sender),
+            timestamp: m.timestamp,
+            sequence_number: m.sequence_number,
+        }
+    }
+}
 
-// In-memory storage for messages
-static MESSAGES: Lazy<Mutex<HashMap<u32, Vec<Message>>>> = Lazy::new(|| {
-    let mut map = HashMap::new();
-    
-    // Sample messages for conversation 1
-    map.insert(1, vec![
-        Message { id: 1, text: "What can you tell me about AI?".to_string(), sender: "user".to_string() },
-        Message { id: 2, text: "Artificial Intelligence (AI) refers to systems designed to perform tasks that typically require human intelligence. These include learning, reasoning, problem-solving, perception, and language understanding.".to_string(), sender: "ai".to_string() },
-    ]);
-    
-    // Sample messages for conversation 2
-    map.insert(2, vec![
-        Message { id: 1, text: "Let's plan our project timeline.".to_string(), sender: "user".to_string() },
-        Message { id: 2, text: "Great! We should start by defining our objectives and milestones. What's the project scope?".to_string(), sender: "ai".to_string() },
-    ]);
-    
-    // Sample messages for other conversations
-    map.insert(3, vec![
-        Message { id: 1, text: "I'm planning a trip to Japan. Any recommendations?".to_string(), sender: "user".to_string() },
-        Message { id: 2, text: "Japan is a great destination! I'd recommend visiting Tokyo, Kyoto, and Osaka. Each city offers unique experiences from modern technology to traditional culture.".to_string(), sender: "ai".to_string() },
-    ]);
-    
-    map.insert(4, vec![
-        Message { id: 1, text: "Can you suggest some science fiction books?".to_string(), sender: "user".to_string() },
-        Message { id: 2, text: "Some classic sci-fi books include 'Dune' by Frank Herbert, '1984' by George Orwell, and 'The Hitchhiker's Guide to the Galaxy' by Douglas Adams. For more recent works, consider 'The Three-Body Problem' by Liu Cixin.".to_string(), sender: "ai".to_string() },
-    ]);
-    
-    map.insert(5, vec![
-        Message { id: 1, text: "I'm having trouble with async functions in JavaScript.".to_string(), sender: "user".to_string() },
-        Message { id: 2, text: "Async functions in JavaScript can be tricky! Remember that an async function always returns a Promise. You can use 'await' inside an async function to pause execution until the Promise resolves.".to_string(), sender: "ai".to_string() },
-    ]);
-    
-    Mutex::new(map)
-});
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+// Helper function to convert Identity to String
+fn identity_to_string(identity: Identity) -> String {
+    format!("{}", identity)
 }
 
 #[tauri::command]
-fn get_conversations() -> Vec<Conversation> {
-    // Get conversation list from global state
-    CONVERSATIONS.lock().unwrap().clone()
+async fn subscribe_to_db_updates() -> Result<(), String> {
+    db_client::subscribe_to_updates()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn create_conversation(name: String) -> Conversation {
-    let mut conversations = CONVERSATIONS.lock().unwrap();
-    
-    // Generate new ID (simply take the max ID + 1)
-    let new_id = conversations
-        .iter()
-        .map(|c| c.id)
-        .max()
-        .unwrap_or(0) + 1;
-    
-    // Create new conversation
-    let new_conversation = Conversation {
-        id: new_id,
-        name,
-    };
-    
-    // Add to the list
-    conversations.push(new_conversation.clone());
-    
-    // Initialize empty message list for this conversation
-    MESSAGES.lock().unwrap().insert(new_id, Vec::new());
-    
-    // Return the newly created conversation
-    new_conversation
+async fn get_conversations() -> Result<Vec<Conversation>, String> {
+    db_client::query_conversations()
+        .await
+        .map(|conversations| conversations.into_iter().map(Conversation::from).collect())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn get_messages(conversation_id: u32) -> Vec<Message> {
-    // Get messages for the specified conversation
-    MESSAGES.lock()
+async fn create_conversation(name: String) -> Result<Conversation, String> {
+    // Call the SpaceTimeDB function to create a conversation
+    let conversation_id = db_client::create_conversation(name.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    // Since we may not immediately get the update from the subscription,
+    // create a temporary object to return
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap()
-        .get(&conversation_id)
-        .cloned()
-        .unwrap_or_default()
+        .as_secs();
+    
+    Ok(Conversation {
+        id: conversation_id,
+        name,
+        created_at: current_time,
+    })
 }
 
 #[tauri::command]
-fn add_message(conversation_id: u32, text: String, sender: String) -> Message {
-    let mut messages = MESSAGES.lock().unwrap();
+async fn get_messages(conversation_id: String) -> Result<Vec<Message>, String> {
+    db_client::query_messages(conversation_id)
+        .await
+        .map(|messages| messages.into_iter().map(Message::from).collect())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn add_message(conversation_id: String, text: String, sender_name: String) -> Result<Message, String> {
+    // Call the SpaceTimeDB function to add a message
+    let message_id = db_client::add_message(conversation_id.clone(), text.clone())
+        .await
+        .map_err(|e| e.to_string())?;
     
-    // Get or create the message list for this conversation
-    let conversation_messages = messages
-        .entry(conversation_id)
-        .or_insert_with(Vec::new);
+    // Since we may not immediately get the update from the subscription,
+    // create a temporary object to return
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     
-    // Generate new message ID
-    let new_id = conversation_messages
-        .iter()
-        .map(|m| m.id)
-        .max()
-        .unwrap_or(0) + 1;
-    
-    // Create the new message
-    let new_message = Message {
-        id: new_id,
+    Ok(Message {
+        id: message_id,
+        conversation_id,
         text,
-        sender,
-    };
-    
-    // Add to the list
-    conversation_messages.push(new_message.clone());
-    
-    // Return the created message
-    new_message
+        sender: sender_name,
+        timestamp: current_time,
+        sequence_number: 0, // This will be updated when we get the subscription update
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|_app| {
+            // Initialize database
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(async {
+                    db_client::init_database().await.expect("Failed to initialize database");
+                });
+            
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
-            greet, 
             get_conversations, 
             create_conversation,
             get_messages,
-            add_message
+            add_message,
+            subscribe_to_db_updates
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

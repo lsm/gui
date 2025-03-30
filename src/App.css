@@ -48,6 +48,7 @@ html, body {
   align-items: center;
   padding: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
 }
 
 .sidebar-header h2 {
@@ -217,7 +218,7 @@ html, body {
 
 .chat-input input {
   flex: 1;
-  margin-right: 12px;
+  width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 14px 18px;
   border-radius: 8px;
@@ -226,6 +227,7 @@ html, body {
   font-size: 0.95em;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
+  margin-right: 0;
 }
 
 .chat-input input:focus {
@@ -416,6 +418,9 @@ button {
   cursor: pointer;
   padding: 0;
   transition: all 0.2s ease;
+  position: absolute;
+  right: 16px;
+  top: 10px;
 }
 
 .new-conversation-btn:hover {
@@ -424,11 +429,19 @@ button {
 }
 
 .new-conversation-form {
+  position: absolute;
+  top: 50px;
+  right: 16px;
+  width: 250px;
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background-color: #282828;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .new-conversation-form input {
@@ -464,7 +477,6 @@ button {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-weight: 500;
 }
-
 .chat-input input:disabled {
   background-color: rgba(40, 40, 40, 0.5);
   color: rgba(255, 255, 255, 0.5);
@@ -475,3 +487,58 @@ button {
   background-color: rgba(16, 163, 127, 0.5);
   cursor: not-allowed;
 }
+
+.app-header {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 100;
+  display: none; /* Hide the original header */
+}
+
+.app-header .new-conversation-btn {
+  background-color: rgba(16, 163, 127, 0.2);
+  color: #10a37f;
+  border: none;
+  width: 32px;
+  height: 32px;
+  position: static;
+}
+
+/* Chat control bar styles */
+.chat-control-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: #323233;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.control-spacer {
+  flex: 1;
+}
+
+.chat-control-bar .new-conversation-btn {
+  background-color: transparent;
+  color: #9ca3af;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: static;
+  line-height: 1;
+  padding-bottom: 2px;
+}
+
+.chat-control-bar .new-conversation-btn:hover {
+  color: #ececf1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
