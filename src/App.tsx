@@ -1,24 +1,10 @@
-import { createSignal, For, onMount, Show, createEffect, onCleanup } from "solid-js";
+import { createSignal, onMount, createEffect, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { subscribeToUpdates } from "./db-client";
+import { Sidebar, ChatView, ChatControlBar } from "./components";
+import { Message, Conversation } from "./types";
 import "./App.css";
-
-// Define types for our application
-type Message = {
-  id: string;
-  conversation_id: string;
-  text: string;
-  sender: string;
-  timestamp: number;
-  sequence_number: number;
-};
-
-type Conversation = {
-  id: string;
-  name: string;
-  created_at: number;
-};
 
 function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
@@ -153,69 +139,26 @@ function App() {
   return (
     <div class="app-container">
       {/* Sidebar */}
-      <div class="sidebar">
-        <div class="sidebar-header">
-          <h2>Conversations</h2>
-        </div>
-        
-        <div class="item-list">
-          {loading() ? (
-            <div class="loading-state">Loading conversations...</div>
-          ) : (
-            <For each={items()}>
-              {(item) => (
-                <div 
-                  class={`item ${selectedItem() === item.id ? 'selected' : ''}`}
-                  onClick={() => handleSelectConversation(item.id)}
-                >
-                  <div class="item-name">{item.name}</div>
-                </div>
-              )}
-            </For>
-          )}
-        </div>
-      </div>
+      <Sidebar 
+        items={items()}
+        loading={loading()} 
+        selectedItem={selectedItem()} 
+        onSelectConversation={handleSelectConversation}
+        onCreateNewConversation={createNewConversation}
+      />
       
       {/* Main chat area */}
       <div class="main-content">
-        {/* Chat control bar */}
-        <div class="chat-control-bar">
-          <div class="control-spacer"></div>
-          <button 
-            class="new-conversation-btn" 
-            onClick={() => createNewConversation()}
-            title="New Chat"
-          >
-            +
-          </button>
-        </div>
+        <ChatControlBar onCreateNewConversation={createNewConversation} />
         
-        <div class="chat-container">
-          <div class="chat-messages">
-            {loadingMessages() ? (
-              <div class="loading-state">Loading messages...</div>
-            ) : (
-              <For each={messages()}>
-                {(message) => (
-                  <div class={`message ${message.sender}`}>
-                    <div class="message-content">{message.text}</div>
-                  </div>
-                )}
-              </For>
-            )}
-          </div>
-          
-          {/* Message input */}
-          <form class="chat-input" onSubmit={sendMessage}>
-            <input
-              type="text"
-              value={inputValue()}
-              onInput={(e) => setInputValue(e.currentTarget.value)}
-              placeholder="Type your message here..."
-              disabled={selectedItem() === null}
-            />
-          </form>
-        </div>
+        <ChatView 
+          messages={messages()}
+          loadingMessages={loadingMessages()}
+          inputValue={inputValue()}
+          onInputChange={setInputValue}
+          onSendMessage={sendMessage}
+          disabled={selectedItem() === null}
+        />
       </div>
     </div>
   );

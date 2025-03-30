@@ -1,6 +1,5 @@
-use crate::db_schema::{Conversation, Message, create_conversation_data, create_message_data, get_current_timestamp};
+use crate::db_schema::{Conversation, Message, create_conversation_data, create_message_data};
 use surrealdb::engine::local::{RocksDb, Db};
-use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -26,11 +25,8 @@ pub async fn init_database() -> Result<(), Box<dyn std::error::Error>> {
     // Create database instance with RocksDB as the storage engine
     let db = Surreal::new::<RocksDb>(db_path).await?;
     
-    // Sign in as root
-    db.signin(Root {
-        username: "root",
-        password: "root",
-    }).await?;
+    // In newer SurrealDB versions, we can use NS/DB without auth for local development
+    // No authentication needed for local RocksDB
     
     // Select a namespace and database
     db.use_ns(NAMESPACE).use_db(DATABASE).await?;
@@ -165,22 +161,4 @@ pub async fn add_message(conversation_id: String, text: String) -> Result<String
     println!("Created message with ID: {}", message_id);
     
     Ok(message_id)
-}
-
-// Delete a conversation and its messages
-pub async fn delete_conversation(conversation_id: String) -> Result<(), Box<dyn std::error::Error>> {
-    let db = get_db().await?;
-    
-    // Clone the conversation_id for the query
-    let id_for_query = conversation_id.clone();
-    
-    // Delete all messages in the conversation
-    db.query("DELETE message WHERE conversation_id = $id")
-        .bind(("id", id_for_query))
-        .await?;
-    
-    // Delete the conversation - with type annotation
-    let _: Option<Conversation> = db.delete(("conversation", conversation_id)).await?;
-    
-    Ok(())
 } 
