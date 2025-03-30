@@ -1,9 +1,8 @@
 import { createSignal, onMount, createEffect, onCleanup } from "solid-js";
-import { invoke } from "@tauri-apps/api/core";
-import { Window } from "@tauri-apps/api/window";
 import { subscribeToUpdates } from "./db-client";
 import { Sidebar, ChatView, ChatControlBar } from "./components";
 import { Message, Conversation } from "./types";
+import { loadConversations, loadMessages, createConversation, sendMessage, updateWindowTitle } from "./services/conversationService";
 import "./App.css";
 
 function App() {
@@ -17,10 +16,10 @@ function App() {
   const [showNewConversation, setShowNewConversation] = createSignal(false);
   
   // Load conversation list from database
-  async function loadConversations() {
+  async function fetchConversations() {
     try {
       setLoading(true);
-      const conversations = await invoke<Conversation[]>("get_conversations");
+      const conversations = await loadConversations();
       setItems(conversations);
       // Select the first conversation by default
       if (conversations.length > 0 && selectedItem() === null) {
@@ -34,10 +33,10 @@ function App() {
   }
   
   // Load messages for the selected conversation
-  async function loadMessages(conversationId: string) {
+  async function fetchMessages(conversationId: string) {
     try {
       setLoadingMessages(true);
-      const conversationMessages = await invoke<Message[]>("get_messages", { conversation_id: conversationId });
+      const conversationMessages = await loadMessages(conversationId);
       setMessages(conversationMessages);
     } catch (error) {
       console.error(`Error loading messages for conversation ${conversationId}:`, error);
@@ -53,7 +52,7 @@ function App() {
   
   // Load initial conversations
   onMount(async () => {
-    await loadConversations();
+    await fetchConversations();
     
     // Set up real-time updates
     const cleanup = await subscribeToUpdates(
@@ -69,61 +68,39 @@ function App() {
   createEffect(() => {
     const currentConversation = selectedItem();
     if (currentConversation !== null) {
-      loadMessages(currentConversation);
+      fetchMessages(currentConversation);
       
       // Update window title with current conversation name
       const selectedConversationName = items().find(item => item.id === currentConversation)?.name || "Chat";
       updateWindowTitle(selectedConversationName);
     }
   });
-  
-  // Update the native window title
-  async function updateWindowTitle(title: string) {
-    try {
-      const currentWindow = Window.getCurrent();
-      await currentWindow.setTitle(`${title} - Chat App`);
-    } catch (error) {
-      console.error("Error updating window title:", error);
-    }
-  }
 
-  async function sendMessage(e: Event) {
+  async function handleSendMessage(e: Event) {
     e.preventDefault();
     
     if (!inputValue().trim() || selectedItem() === null) return;
     
     try {
-      // Add user message to chat
-      const userMessage = await invoke<Message>("add_message", {
-        conversation_id: selectedItem(),
-        text: inputValue(),
-        sender_name: "user"
-      });
+      const [userMessage, aiResponse] = await sendMessage(selectedItem()!, inputValue());
       
-      setMessages([...messages(), userMessage]);
+      // Update messages state with both messages
+      setMessages([...messages(), userMessage, aiResponse]);
       setInputValue("");
-      
-      // For demo purposes, we'll use a simple response
-      // In a real app, you'd call your AI service here
-      const aiResponse = await invoke<Message>("add_message", {
-        conversation_id: selectedItem(),
-        text: `You said: "${userMessage.text}". This is a simulated AI response.`,
-        sender_name: "ai"
-      });
-      
-      setMessages([...messages(), aiResponse]);
     } catch (error) {
       console.error("Error sending message:", error);
+      
+      // Display a user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : "Failed to send message. Please try again.";
+      alert(`Error: ${errorMessage}`);
     }
   }
   
-  async function createNewConversation(e?: Event) {
+  async function handleCreateNewConversation(e?: Event) {
     if (e) e.preventDefault();
     
     try {
-      const newConversation = await invoke<Conversation>("create_conversation", { 
-        name: newConversationName() || "New Chat" 
-      });
+      const newConversation = await createConversation(newConversationName() || "New Chat");
       
       // Select the newly created conversation
       setSelectedItem(newConversation.id);
@@ -133,6 +110,13 @@ function App() {
       setShowNewConversation(false);
     } catch (error) {
       console.error("Error creating conversation:", error);
+      
+      // Display a user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : "Failed to create conversation. Please try again.";
+      alert(`Error: ${errorMessage}`);
+      
+      // Try to refresh conversations in case there was an issue
+      fetchConversations();
     }
   }
 
@@ -144,19 +128,19 @@ function App() {
         loading={loading()} 
         selectedItem={selectedItem()} 
         onSelectConversation={handleSelectConversation}
-        onCreateNewConversation={createNewConversation}
+        onCreateNewConversation={handleCreateNewConversation}
       />
       
       {/* Main chat area */}
       <div class="main-content">
-        <ChatControlBar onCreateNewConversation={createNewConversation} />
+        <ChatControlBar onCreateNewConversation={handleCreateNewConversation} />
         
         <ChatView 
           messages={messages()}
           loadingMessages={loadingMessages()}
           inputValue={inputValue()}
           onInputChange={setInputValue}
-          onSendMessage={sendMessage}
+          onSendMessage={handleSendMessage}
           disabled={selectedItem() === null}
         />
       </div>
