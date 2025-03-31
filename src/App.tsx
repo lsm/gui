@@ -76,6 +76,17 @@ function App() {
     }
   });
 
+  // Listen for changes in items to update the window title if the selected chat's name changes
+  createEffect(() => {
+    const currentChat = selectedItem();
+    const chatsList = items();
+    
+    if (currentChat !== null) {
+      const selectedChatName = chatsList.find(item => item.id === currentChat)?.name || "Chat";
+      updateWindowTitle(selectedChatName);
+    }
+  });
+
   async function handleSendMessage(e: Event) {
     e.preventDefault();
     console.log("handleSendMessage called", {

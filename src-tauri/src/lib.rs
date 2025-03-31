@@ -86,6 +86,14 @@ async fn add_message(chat_id: String, text: String, sender_name: String) -> Resu
     })
 }
 
+#[tauri::command]
+async fn update_chat(chat_id: String, name: String) -> Result<(), String> {
+    // Call the database function to update the chat
+    db::update_chat(chat_id, name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // New command to subscribe to chat updates
 #[tauri::command]
 async fn subscribe_to_chat_updates(window: AppHandle) -> Result<(), String> {
@@ -129,6 +137,7 @@ pub fn run() {
             create_chat,
             get_messages,
             add_message,
+            update_chat,
             subscribe_to_db_updates,
             subscribe_to_chat_updates,
             test

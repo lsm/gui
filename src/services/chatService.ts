@@ -118,6 +118,40 @@ export async function sendMessage(chatId: string, text: string): Promise<[Messag
 }
 
 /**
+ * Update a chat's title
+ */
+export async function updateChatTitle(chatId: string, title: string): Promise<void> {
+  try {
+    // Try to re-establish the database connection as a precaution
+    try {
+      await invoke("subscribe_to_db_updates");
+    } catch (subError) {
+      console.warn("Warning during resubscribe attempt before updating chat title:", subError);
+      // Continue even if this fails
+    }
+    
+    console.log("Updating chat title for:", chatId, "new title:", title);
+    await invoke("update_chat", { 
+      chatId,
+      name: title
+    });
+    
+    // Update the window title as well
+    await updateWindowTitle(title);
+    
+  } catch (error) {
+    console.error("Error updating chat title:", error);
+    
+    // If it's a closed channel error, notify the user
+    if (error && typeof error === 'string' && error.includes('closed channel')) {
+      throw new Error(`Database connection error: ${error}. Please restart the application.`);
+    }
+    
+    throw error;
+  }
+}
+
+/**
  * Update the native window title
  */
 export async function updateWindowTitle(title: string): Promise<void> {

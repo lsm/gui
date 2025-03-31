@@ -425,4 +425,37 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
     
     println!("Created message with ID: {}", message_id);
     Ok(message_id)
+}
+
+// Update a chat's properties
+pub async fn update_chat(chat_id: String, name: String) -> Result<(), Box<dyn Error + Send + Sync>> {
+    // Get DB connection with auto-reconnect if needed
+    let db = get_db().await?;
+    
+    // The chat_id might be in form "chat:uuid" or just "uuid"
+    let parts: Vec<&str> = chat_id.split(':').collect();
+    let (table, id) = if parts.len() > 1 {
+        (parts[0], parts[1])
+    } else {
+        ("chat", parts[0])
+    };
+    
+    // Update the chat with the new name
+    println!("Updating chat {} with new name: {}", chat_id, name);
+    let update_result: Result<Option<Chat>, surrealdb::Error> = db.update((table, id))
+        .merge(serde_json::json!({
+            "name": name
+        }))
+        .await;
+    
+    match update_result {
+        Ok(_) => {
+            println!("Successfully updated chat name");
+            Ok(())
+        },
+        Err(e) => {
+            eprintln!("Error updating chat: {}", e);
+            Err(format!("Failed to update chat: {}", e).into())
+        }
+    }
 } 
