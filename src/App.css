@@ -96,7 +96,7 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 /* Main content styles */
@@ -569,7 +569,7 @@ button {
   padding: 4px 0;
   font-size: 14px;
   outline: none;
-  text-align: center;
+  text-align: left;
   caret-color: var(--text-light);
   height: 20px;
   line-height: 20px;
