@@ -3,7 +3,8 @@
 // Import the submodules
 mod client;
 pub mod schema;
-
+pub mod debugging;
 // Re-export types needed by the API
 pub use schema::{Chat, Message, ApiChat, ApiMessage, get_current_timestamp};
 pub use client::*; 
+pub use debugging::*;

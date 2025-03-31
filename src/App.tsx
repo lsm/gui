@@ -56,9 +56,7 @@ function App() {
     
     // Set up real-time updates
     const cleanup = await subscribeToUpdates(
-      setMessages,
       setItems,
-      selectedItem()
     );
     
     onCleanup(cleanup);

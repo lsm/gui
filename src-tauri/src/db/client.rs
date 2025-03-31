@@ -185,7 +185,7 @@ fn get_chat_update_sender() -> Result<broadcast::Sender<ApiChat>, Box<dyn Error 
 // Get database instance with auto-reconnect if needed
 pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn Error + Send + Sync>> {
     if !DB.initialized() {
-        // Initialize database if it hasn't been initialized yet
+        println!("Database not initialized, initializing now");
         init_database().await?;
     }
     
@@ -206,39 +206,6 @@ pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn Error + Send + Syn
             }
         },
         None => Err("Database not initialized".into()),
-    }
-}
-
-// Ensure database connection or reinitialize
-pub async fn ensure_db_connection() -> Result<(), Box<dyn Error + Send + Sync>> {
-    // First, check if the database is initialized
-    if !DB.initialized() {
-        println!("Database not initialized, initializing now");
-        return init_database().await;
-    }
-    
-    // If initialized, verify the connection is still valid
-    let db = DB.get().ok_or("Database was initialized but is no longer available")?;
-    
-    // Try to run a simple query to verify connection
-    match db.query("SELECT 1 FROM tb").await {
-        Ok(_) => {
-            println!("Database connection confirmed");
-            Ok(())
-        },
-        Err(e) => {
-            // If query fails, the connection might be broken
-            println!("Database connection check failed: {}", e);
-            println!("Attempting to reinitialize database connection");
-            
-            // This is a workaround since we can't replace the DB once initialized in OnceCell
-            // In a production app, you might want a different solution
-            // such as lazy_static with RwLock or a connection pool
-            
-            // We'll just try to create a new connection inside init_database
-            // which will verify the existing one
-            init_database().await
-        }
     }
 }
 
@@ -311,52 +278,8 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
         ("chat", parts[0])
     };
 
-    // DEBUG: Query all chats for debugging
-    // println!("DEBUG: Querying all available chats");
-    // let all_chats_result = db.query("SELECT * FROM chat").await;
-    // match all_chats_result {
-    //     Ok(mut result) => {
-    //         let all_chats: Vec<Chat> = match result.take(0) {
-    //             Ok(chats) => chats,
-    //             Err(e) => {
-    //                 println!("Error extracting all chats: {}", e);
-    //                 vec![] // Empty vector on error
-    //             }
-    //         };
-    //         println!("DEBUG: Found {} chats:", all_chats.len());
-    //         for (i, chat) in all_chats.iter().enumerate() {
-    //             println!("  {}: ID: {:?}, Name: {}", i, chat.id, chat.name);
-    //         }
-    //     },
-    //     Err(e) => {
-    //         println!("Error querying all chats: {}", e);
-    //     }
-    // }
-
-    // DEBUG: Query all messages for debugging
-    println!("DEBUG: Querying all messages for chat: {}", chat_id);
-    let messages_result = db.query("SELECT * FROM message WHERE chat_id = $id")
-        .bind(("id", chat_id.clone()))
-        .await;
-    
-    match messages_result {
-        Ok(mut result) => {
-            let messages: Vec<Message> = match result.take(0) {
-                Ok(msgs) => msgs,
-                Err(e) => {
-                    eprintln!("Error extracting messages: {}", e);
-                    vec![]
-                }
-            };
-            println!("DEBUG: Found {} messages:", messages.len());
-            for (i, msg) in messages.iter().enumerate() {
-                println!("  {}: ID: {:?}, Text: {}", i, msg.id, msg.text);
-            }
-        },
-        Err(e) => {
-            eprintln!("Error querying messages: {}", e);
-        }
-    }
+    // debug_query_chats(db).await?;
+    // debug_query_messages(db, chat_id.clone()).await?;
         
     // Query the chat with proper ID format
     println!("Looking for chat with table='{}', id='{}'", table, id);
@@ -458,4 +381,5 @@ pub async fn update_chat(chat_id: String, name: String) -> Result<(), Box<dyn Er
             Err(format!("Failed to update chat: {}", e).into())
         }
     }
-} 
+}
+

@@ -16,13 +16,6 @@ async fn test(msg: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn subscribe_to_db_updates() -> Result<(), String> {
-    db::ensure_db_connection()
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 async fn get_chats() -> Result<Vec<ApiChat>, String> {
     db::query_chats()
         .await
@@ -32,11 +25,6 @@ async fn get_chats() -> Result<Vec<ApiChat>, String> {
 
 #[tauri::command]
 async fn create_chat(name: String) -> Result<ApiChat, String> {
-    // Make sure the database is initialized first
-    db::ensure_db_connection()
-        .await
-        .map_err(|e| format!("Failed to ensure database connection: {}", e.to_string()))?;
-    
     // Call the database function to create a chat
     let chat_id = db::create_chat(name.clone())
         .await
@@ -124,7 +112,7 @@ pub fn run() {
             
             // Tauri already sets up a runtime, so we should use it
             tauri::async_runtime::spawn(async {
-                match db::init_database().await {
+                match db::get_db().await {
                     Ok(_) => println!("Database initialized successfully from tauri::async_runtime"),
                     Err(e) => eprintln!("Failed to initialize database: {}", e),
                 }
@@ -138,7 +126,6 @@ pub fn run() {
             get_messages,
             add_message,
             update_chat,
-            subscribe_to_db_updates,
             subscribe_to_chat_updates,
             test
         ])

@@ -11,18 +11,6 @@ export async function loadChats(): Promise<Chat[]> {
     return chats;
   } catch (error) {
     console.error("Error loading chats:", error);
-    // In case of a closed channel error, try to restart the database connection
-    if (error && typeof error === 'string' && error.includes('closed channel')) {
-      try {
-        // Try to re-subscribe to database updates which might help with reconnection
-        await invoke("subscribe_to_db_updates");
-        // Try again after re-subscribing
-        const chats = await invoke<Chat[]>("get_chats");
-        return chats;
-      } catch (retryError) {
-        console.error("Failed to reconnect to database:", retryError);
-      }
-    }
     return [];
   }
 }
@@ -78,14 +66,6 @@ export async function sendMessage(chatId: string, text: string): Promise<[Messag
   console.log("sendMessage called with chatId:", chatId);
   
   try {
-    // Try to re-establish the database connection
-    try {
-      await invoke("subscribe_to_db_updates");
-    } catch (subError) {
-      console.warn("Warning during resubscribe attempt before sending message:", subError);
-      // Continue even if this fails
-    }
-    
     // Add user message to chat using camelCase parameters
     console.log("Sending user message with chatId:", chatId);
     const userMessage = await invoke<Message>("add_message", { 
@@ -122,14 +102,6 @@ export async function sendMessage(chatId: string, text: string): Promise<[Messag
  */
 export async function updateChatTitle(chatId: string, title: string): Promise<void> {
   try {
-    // Try to re-establish the database connection as a precaution
-    try {
-      await invoke("subscribe_to_db_updates");
-    } catch (subError) {
-      console.warn("Warning during resubscribe attempt before updating chat title:", subError);
-      // Continue even if this fails
-    }
-    
     console.log("Updating chat title for:", chatId, "new title:", title);
     await invoke("update_chat", { 
       chatId,
