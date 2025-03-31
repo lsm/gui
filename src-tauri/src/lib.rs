@@ -63,6 +63,10 @@ async fn get_messages(chat_id: String) -> Result<Vec<ApiMessage>, String> {
 
 #[tauri::command]
 async fn add_message(chat_id: String, text: String, sender_name: String) -> Result<ApiMessage, String> {
+    // Log the parameters received from the client
+    println!("add_message called with parameters: chat_id='{}', text='{}', sender_name='{}'", 
+             chat_id, text, sender_name);
+    
     // Call the database function to add a message
     let message_id = db::add_message(chat_id.clone(), text.clone())
         .await

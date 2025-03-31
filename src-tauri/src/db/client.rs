@@ -310,11 +310,43 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
     } else {
         ("chat", parts[0])
     };
+
+    // DEBUG: Query all chats for debugging
+    println!("DEBUG: Querying all available chats");
+    let all_chats_result = db.query("SELECT * FROM chat").await;
+    match all_chats_result {
+        Ok(mut result) => {
+            let all_chats: Vec<Chat> = match result.take(0) {
+                Ok(chats) => chats,
+                Err(e) => {
+                    println!("Error extracting all chats: {}", e);
+                    vec![] // Empty vector on error
+                }
+            };
+            println!("DEBUG: Found {} chats:", all_chats.len());
+            for (i, chat) in all_chats.iter().enumerate() {
+                println!("  {}: ID: {:?}, Name: {}", i, chat.id, chat.name);
+            }
+        },
+        Err(e) => {
+            println!("Error querying all chats: {}", e);
+        }
+    }
     
     // Query the chat with proper ID format
+    println!("Looking for chat with table='{}', id='{}'", table, id);
     let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select((table, id)).await;
     let _chat = match chat_result {
-        Ok(maybe_chat) => maybe_chat.ok_or("Chat not found")?,
+        Ok(maybe_chat) => match maybe_chat {
+            Some(chat) => {
+                println!("Found chat: {:?}", chat.name);
+                chat
+            },
+            None => {
+                eprintln!("Chat not found with ID {}", id);
+                return Err(format!("Chat not found with ID {}", id).into());
+            }
+        },
         Err(e) => {
             eprintln!("Error checking chat: {}", e);
             return Err(format!("Failed to verify chat: {}", e).into());

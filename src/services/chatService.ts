@@ -75,6 +75,8 @@ export async function createChat(name: string): Promise<Chat> {
  * Send a message in a chat and get AI response
  */
 export async function sendMessage(chatId: string, text: string): Promise<[Message, Message]> {
+  console.log("sendMessage called with chatId:", chatId);
+  
   try {
     // Try to re-establish the database connection
     try {
@@ -84,26 +86,23 @@ export async function sendMessage(chatId: string, text: string): Promise<[Messag
       // Continue even if this fails
     }
     
-    // Process the chatId to ensure proper format
-    let processedChatId = chatId;
-    if (chatId.includes(":")) {
-      // Split by colon and take the second part if it's in table:id format
-      processedChatId = chatId.split(":")[1];
-    }
-    
     // Add user message to chat using camelCase parameters
+    console.log("Sending user message with chatId:", chatId);
     const userMessage = await invoke<Message>("add_message", { 
-      chatId: processedChatId,
+      chatId,
       text,
       senderName: "user"
     });
+    console.log("User message added:", userMessage);
     
     // Add AI response using the same parameter format
+    console.log("Sending AI response with chatId:", chatId);
     const aiResponse = await invoke<Message>("add_message", { 
-      chatId: processedChatId,
+      chatId,
       text: `You said: "${userMessage.text}". This is a simulated AI response.`,
       senderName: "ai"
     });
+    console.log("AI response added:", aiResponse);
     
     return [userMessage, aiResponse];
   } catch (error) {
