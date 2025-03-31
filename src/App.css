@@ -74,6 +74,9 @@ html, body {
   border-radius: 5px;
   transition: background-color 0.2s ease;
   margin: 2px 0;
+  display: flex;
+  align-items: center;
+  min-height: 24px;
 }
 
 .item:hover {
@@ -92,6 +95,8 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  width: 100%;
+  text-align: center;
 }
 
 /* Main content styles */
@@ -556,16 +561,21 @@ button {
 /* Input for editing chat titles */
 .edit-title-input {
   width: 100%;
-  background-color: #3c3c3d;
+  background-color: transparent;
   color: #fff;
-  border: 1px solid #555;
-  border-radius: 3px;
-  padding: 4px 8px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0;
+  padding: 4px 0;
   font-size: 14px;
   outline: none;
+  text-align: center;
+  caret-color: var(--text-light);
+  height: 20px;
+  line-height: 20px;
 }
 
 .edit-title-input:focus {
-  border-color: #10a37f;
+  border-bottom: 1px solid var(--accent-primary);
 }
 

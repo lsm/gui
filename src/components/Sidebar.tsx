@@ -76,8 +76,15 @@ export function Sidebar(props: SidebarProps) {
                     onInput={handleTitleChange}
                     onKeyDown={(e) => handleTitleKeyDown(e, item.id)}
                     onBlur={() => handleTitleBlur(item.id)}
-                    // Focus the input element when it appears
-                    ref={(el) => { el.focus(); }}
+                    // Focus the input element when it appears with a short timeout
+                    ref={(el) => { 
+                      setTimeout(() => {
+                        el.focus();
+                        // Set cursor position to the end of the text
+                        const len = el.value.length;
+                        el.setSelectionRange(len, len);
+                      }, 0);
+                    }}
                   />
                 ) : (
                   <div 
