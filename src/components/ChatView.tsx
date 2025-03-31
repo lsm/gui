@@ -13,6 +13,8 @@ type ChatViewProps = {
 export function ChatView(props: ChatViewProps) {
   // Reference to the chat messages container
   let messagesContainer: HTMLDivElement | undefined;
+  // Reference to the textarea
+  let textareaRef: HTMLTextAreaElement | undefined;
   
   // Handle the submit event
   const handleSubmit = (e: Event) => {
@@ -29,6 +31,21 @@ export function ChatView(props: ChatViewProps) {
       props.onSendMessage(e);
     }
   };
+
+  // Function to adjust textarea height
+  const adjustTextareaHeight = () => {
+    if (textareaRef) {
+      textareaRef.style.height = '24px'; // Reset height to single line
+      const scrollHeight = textareaRef.scrollHeight;
+      textareaRef.style.height = Math.min(scrollHeight, 200) + 'px'; // Set new height, capped at 200px
+    }
+  };
+
+  // Adjust height when input value changes
+  createEffect(() => {
+    // Use setTimeout to ensure the DOM has updated
+    setTimeout(adjustTextareaHeight, 0);
+  });
 
   // Helper function to normalize sender type for proper styling
   const normalizeSender = (sender: string): "user" | "ai" => {
@@ -96,11 +113,20 @@ export function ChatView(props: ChatViewProps) {
       
       {/* Message input */}
       <form class="chat-input" onSubmit={handleSubmit}>
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
           value={props.inputValue}
-          onInput={(e) => props.onInputChange(e.currentTarget.value)}
-          placeholder="Type your message here..."
+          onInput={(e) => {
+            props.onInputChange(e.currentTarget.value);
+            adjustTextareaHeight();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+          placeholder="Type your message here... (Shift+Enter for new line)"
           disabled={props.disabled}
         />
       </form>
