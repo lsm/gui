@@ -109,6 +109,7 @@ html, body {
   flex-direction: column;
   overflow: hidden;
   background-color: #282828;
+  position: relative;
 }
 
 .chat-container {
@@ -119,14 +120,16 @@ html, body {
   margin: 0;
   background-color: #282828;
   box-shadow: none;
+  position: relative;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 0;
+  padding: 10px 0 100px 0; /* Increased bottom padding to prevent last message from being hidden */
   display: flex;
   flex-direction: column;
+  margin-bottom: 124px; /* Remove margin, using padding instead */
 }
 
 .message {
@@ -211,9 +214,15 @@ html, body {
   padding: 16px 5% 24px 5%;
   background-color: #282828;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-  position: relative;
-  z-index: 10;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  width: calc(100% - 260px); /* Account for sidebar width */
+  margin-left: 260px; /* Match sidebar width */
+  box-sizing: border-box; /* Ensure padding doesn't affect width calculation */
 }
 
 .chat-input input {
@@ -304,6 +313,16 @@ html, body {
   
   .chat-container {
     margin: 8px;
+  }
+  
+  .chat-input {
+    width: 100%;
+    margin-left: 0;
+    padding: 12px 16px 20px 16px;
+  }
+  
+  .chat-messages {
+    padding-bottom: 120px; /* Increase padding for mobile */
   }
 }
 
