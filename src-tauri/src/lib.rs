@@ -68,7 +68,7 @@ async fn add_message(chat_id: String, text: String, sender_name: String) -> Resu
              chat_id, text, sender_name);
     
     // Call the database function to add a message
-    let message_id = db::add_message(chat_id.clone(), text.clone())
+    let message_id = db::add_message(chat_id.clone(), text.clone(), sender_name.clone())
         .await
         .map_err(|e| e.to_string())?;
     

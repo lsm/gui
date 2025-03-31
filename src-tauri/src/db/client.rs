@@ -296,7 +296,7 @@ pub async fn create_chat(name: String) -> Result<String, Box<dyn Error + Send + 
 }
 
 // Add a new message
-pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dyn Error + Send + Sync>> {
+pub async fn add_message(chat_id: String, text: String, sender_name: String) -> Result<String, Box<dyn Error + Send + Sync>> {
     // Get DB connection with auto-reconnect if needed
     let db = get_db().await?;
     
@@ -312,27 +312,52 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
     };
 
     // DEBUG: Query all chats for debugging
-    println!("DEBUG: Querying all available chats");
-    let all_chats_result = db.query("SELECT * FROM chat").await;
-    match all_chats_result {
+    // println!("DEBUG: Querying all available chats");
+    // let all_chats_result = db.query("SELECT * FROM chat").await;
+    // match all_chats_result {
+    //     Ok(mut result) => {
+    //         let all_chats: Vec<Chat> = match result.take(0) {
+    //             Ok(chats) => chats,
+    //             Err(e) => {
+    //                 println!("Error extracting all chats: {}", e);
+    //                 vec![] // Empty vector on error
+    //             }
+    //         };
+    //         println!("DEBUG: Found {} chats:", all_chats.len());
+    //         for (i, chat) in all_chats.iter().enumerate() {
+    //             println!("  {}: ID: {:?}, Name: {}", i, chat.id, chat.name);
+    //         }
+    //     },
+    //     Err(e) => {
+    //         println!("Error querying all chats: {}", e);
+    //     }
+    // }
+
+    // DEBUG: Query all messages for debugging
+    println!("DEBUG: Querying all messages for chat: {}", chat_id);
+    let messages_result = db.query("SELECT * FROM message WHERE chat_id = $id")
+        .bind(("id", chat_id.clone()))
+        .await;
+    
+    match messages_result {
         Ok(mut result) => {
-            let all_chats: Vec<Chat> = match result.take(0) {
-                Ok(chats) => chats,
+            let messages: Vec<Message> = match result.take(0) {
+                Ok(msgs) => msgs,
                 Err(e) => {
-                    println!("Error extracting all chats: {}", e);
-                    vec![] // Empty vector on error
+                    eprintln!("Error extracting messages: {}", e);
+                    vec![]
                 }
             };
-            println!("DEBUG: Found {} chats:", all_chats.len());
-            for (i, chat) in all_chats.iter().enumerate() {
-                println!("  {}: ID: {:?}, Name: {}", i, chat.id, chat.name);
+            println!("DEBUG: Found {} messages:", messages.len());
+            for (i, msg) in messages.iter().enumerate() {
+                println!("  {}: ID: {:?}, Text: {}", i, msg.id, msg.text);
             }
         },
         Err(e) => {
-            println!("Error querying all chats: {}", e);
+            eprintln!("Error querying messages: {}", e);
         }
     }
-    
+        
     // Query the chat with proper ID format
     println!("Looking for chat with table='{}', id='{}'", table, id);
     let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select((table, id)).await;
@@ -375,14 +400,11 @@ pub async fn add_message(chat_id: String, text: String) -> Result<String, Box<dy
     
     let sequence_number = messages.len() as u64 + 1;
     
-    // Create a sender ID
-    let sender = format!("user-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("anonymous"));
-    
     // Create a new message
     let message = create_message_data(
         chat_id,
         text,
-        sender,
+        sender_name,
         sequence_number
     );
     

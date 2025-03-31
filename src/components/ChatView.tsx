@@ -27,6 +27,16 @@ export function ChatView(props: ChatViewProps) {
     }
   };
 
+  // Helper function to normalize sender type for proper styling
+  const normalizeSender = (sender: string): "user" | "ai" => {
+    // If sender starts with "user-", it's a user message
+    if (sender.startsWith("user-") || sender === "user") {
+      return "user";
+    }
+    // Otherwise treat as AI
+    return "ai";
+  };
+
   return (
     <div class="chat-container">
       <div class="chat-messages">
@@ -35,7 +45,7 @@ export function ChatView(props: ChatViewProps) {
         ) : (
           <For each={props.messages}>
             {(message) => (
-              <div class={`message ${message.sender}`}>
+              <div class={`message ${normalizeSender(message.sender)}`}>
                 <div class="message-content">{message.text}</div>
               </div>
             )}
