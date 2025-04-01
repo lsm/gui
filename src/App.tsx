@@ -158,7 +158,7 @@ function App() {
       />
       
       {/* Main chat area */}
-      <div class="main-content">
+      <div class="flex-1 flex flex-col overflow-hidden bg-[#282828] relative">
         <ChatControlBar onCreateNewChat={handleCreateNewChat} />
         
         <ChatView 
