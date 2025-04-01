@@ -97,7 +97,7 @@ export function ChatView(props: ChatViewProps) {
 
   return (
     <div class="flex flex-col h-full bg-chat-bg relative">
-      <div class="flex-1 overflow-y-auto py-2.5 pb-24 flex flex-col mb-31 bg-chat-bg" ref={messagesContainer}>
+      <div class="flex-1 overflow-y-auto py-2.5 pb-24 flex flex-col mb-31 bg-chat-bg scroll-smooth overscroll-contain" ref={messagesContainer}>
         {props.loadingMessages ? (
           <div class="p-4 text-text-secondary text-sm text-center italic my-5">Loading messages...</div>
         ) : (

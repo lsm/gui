@@ -53,7 +53,7 @@ export function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <aside class="w-[260px] bg-sidebar-bg overflow-y-auto flex flex-col">
+    <aside class="w-[260px] bg-sidebar-bg overflow-y-auto flex flex-col scroll-smooth overscroll-contain">
       <div class="flex justify-between items-center p-4 border-b border-sidebar-border relative">
         <h2 class="p-0 m-0 text-sm tracking-[0.5px] text-sidebar-header-text font-medium">Chats</h2>
       </div>
