@@ -147,7 +147,7 @@ function App() {
   }
 
   return (
-    <div class="app-container">
+    <div class="flex h-screen w-full overflow-hidden bg-bg-primary text-text-primary">
       {/* Sidebar */}
       <Sidebar 
         items={items()}
