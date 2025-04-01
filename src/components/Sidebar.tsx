@@ -73,7 +73,12 @@ export function Sidebar(props: SidebarProps) {
                 {editingChatId() === item.id ? (
                   <input
                     type="text"
-                    class="w-full bg-transparent text-white border-none border-b border-sidebar-input-border rounded-none py-1 text-sm outline-none text-left caret-text-light h-5 leading-5 focus:border-accent-primary"
+                    class="edit-title-input"
+                    style={{
+                      "height": "20px",
+                      "line-height": "20px",
+                      "padding": "0"
+                    }}
                     value={editTitle()}
                     onInput={handleTitleChange}
                     onKeyDown={(e) => handleTitleKeyDown(e, item.id)}
@@ -88,7 +93,11 @@ export function Sidebar(props: SidebarProps) {
                   />
                 ) : (
                   <div 
-                    class="whitespace-nowrap overflow-hidden text-ellipsis w-full text-left"
+                    class="whitespace-nowrap overflow-hidden text-ellipsis w-full text-left text-sm"
+                    style={{
+                      "height": "20px",
+                      "line-height": "20px"
+                    }}
                     onDblClick={() => handleDoubleClick(item)}
                   >{item.name}</div>
                 )}
