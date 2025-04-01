@@ -53,34 +53,34 @@ export function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h2>Chats</h2>
+    <aside class="w-[260px] bg-sidebar-bg overflow-y-auto flex flex-col">
+      <div class="flex justify-between items-center p-4 border-b border-sidebar-border relative">
+        <h2 class="p-0 m-0 text-sm tracking-[0.5px] text-sidebar-header-text font-medium">Chats</h2>
       </div>
       
-      <div class="item-list">
+      <div class="flex-1 overflow-y-auto p-2">
         {props.loading ? (
-          <div class="loading-state">Loading chats...</div>
+          <div class="p-4 text-text-secondary text-sm text-center italic my-5">Loading chats...</div>
         ) : (
           <For each={props.items}>
             {(item) => (
               <div 
-                class={`item ${props.selectedItem === item.id ? 'selected' : ''}`}
+                class={`p-3 cursor-pointer rounded-md transition-colors duration-200 my-0.5 flex items-center min-h-6 hover:bg-sidebar-item-hover ${
+                  props.selectedItem === item.id ? 'bg-sidebar-item-selected' : ''
+                }`}
                 onClick={() => props.onSelectChat(item.id)}
               >
                 {editingChatId() === item.id ? (
                   <input
                     type="text"
-                    class="edit-title-input"
+                    class="w-full bg-transparent text-white border-none border-b border-sidebar-input-border rounded-none py-1 text-sm outline-none text-left caret-text-light h-5 leading-5 focus:border-accent-primary"
                     value={editTitle()}
                     onInput={handleTitleChange}
                     onKeyDown={(e) => handleTitleKeyDown(e, item.id)}
                     onBlur={() => handleTitleBlur(item.id)}
-                    // Focus the input element when it appears with a short timeout
                     ref={(el) => { 
                       setTimeout(() => {
                         el.focus();
-                        // Set cursor position to the end of the text
                         const len = el.value.length;
                         el.setSelectionRange(len, len);
                       }, 0);
@@ -88,7 +88,7 @@ export function Sidebar(props: SidebarProps) {
                   />
                 ) : (
                   <div 
-                    class="item-name"
+                    class="whitespace-nowrap overflow-hidden text-ellipsis w-full text-left"
                     onDblClick={() => handleDoubleClick(item)}
                   >{item.name}</div>
                 )}
