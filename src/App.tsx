@@ -3,7 +3,6 @@ import { subscribeToUpdates } from "./db-client";
 import { Sidebar, ChatView, ChatControlBar } from "./components";
 import { Message, Chat } from "./types";
 import { loadChats, loadMessages, createChat, sendMessage, updateWindowTitle } from "./services/chatService";
-import "./App.css";
 
 function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
@@ -158,7 +157,7 @@ function App() {
       />
       
       {/* Main chat area */}
-      <div class="flex-1 flex flex-col overflow-hidden bg-[#282828] relative">
+      <div class="flex-1 flex flex-col overflow-hidden bg-chat-bg relative">
         <ChatControlBar onCreateNewChat={handleCreateNewChat} />
         
         <ChatView 

@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Root level styles */
+html, body {
+  @apply bg-bg-primary text-text-primary;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+@theme {
+  --color-bg-primary: #252526;
+  --color-bg-secondary: #323233;
+  --color-bg-tertiary: #3c3c41;
+  --color-accent-primary: #9ca3af;
+  --color-accent-secondary: #6b7280;
+  --color-text-primary: #ececf1;
+  --color-text-secondary: #c5c5d2;
+  --color-text-light: #ffffff;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-hover-bg: rgba(255, 255, 255, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --font-sans: 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+
+  /* Sidebar specific colors */
+  --color-sidebar-bg: #1a1a1a;
+  --color-sidebar-header-text: rgba(236, 236, 241, 0.6);
+  --color-sidebar-item-hover: rgba(255, 255, 255, 0.1);
+  --color-sidebar-item-selected: rgba(255, 255, 255, 0.2);
+  --color-sidebar-border: rgba(255, 255, 255, 0.1);
+  --color-sidebar-input-border: rgba(255, 255, 255, 0.3);
+
+  /* Control bar specific colors */
+  --color-control-bar-bg: #323233;
+  --color-control-bar-text: #9ca3af;
+  --color-control-bar-hover-text: #ececf1;
+  --color-control-bar-hover-bg: rgba(255, 255, 255, 0.1);
+
+  /* Chat specific colors */
+  --color-chat-bg: #282828;
+  --color-chat-input-bg: rgba(50, 50, 50, 0.9);
+  --color-chat-user-message-bg: #3c3c42;
+  --color-chat-shadow: rgba(0, 0, 0, 0.2);
+  --color-chat-message-shadow: rgba(0, 0, 0, 0.1);
+}
