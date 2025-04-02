@@ -1,3 +1,4 @@
-export { Sidebar } from './Sidebar';
-export { ChatView } from './ChatView';
-export { ChatControlBar } from './ChatControlBar'; 
+export * from './Sidebar';
+export * from './ChatView';
+export * from './ChatControlBar';
+export * from './ConfirmationModal'; 

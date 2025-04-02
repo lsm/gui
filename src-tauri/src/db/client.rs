@@ -383,3 +383,43 @@ pub async fn update_chat(chat_id: String, name: String) -> Result<(), Box<dyn Er
     }
 }
 
+// Delete a chat and its messages
+pub async fn delete_chat(chat_id: String) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let db = get_db().await?;
+    
+    // Delete associated messages first using a query
+    println!("Deleting messages for chat: {}", chat_id);
+    let mut delete_messages_result = db
+        .query("DELETE message WHERE chat_id = $id")
+        .bind(("id", chat_id.clone())) // Clone chat_id here as it's used again below
+        .await?;
+    
+    // Check the result of the delete query (optional, but good practice)
+    let _deleted_messages: Vec<Message> = delete_messages_result.take(0)?;
+    println!("Messages deleted for chat: {}", chat_id);
+
+    // Delete the chat itself
+    println!("Deleting chat: {}", chat_id);
+    // Handle potential "table:id" format
+    let parts: Vec<&str> = chat_id.split(':').collect();
+    let (table, id) = if parts.len() > 1 {
+        (parts[0], parts[1])
+    } else {
+        ("chat", parts[0]) // Assume "chat" table if not specified
+    };
+
+    let deleted_chat: Option<Chat> = db
+        .delete((table, id))
+        .await?;
+
+    if deleted_chat.is_some() {
+        println!("Successfully deleted chat: {}", chat_id);
+        Ok(())
+    } else {
+        println!("Chat not found or already deleted: {}", chat_id);
+        // Consider if this should be an error or not. For idempotency, Ok might be fine.
+        Ok(())
+        // Err(format!("Chat with ID {} not found", chat_id).into())
+    }
+}
+

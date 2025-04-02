@@ -82,6 +82,13 @@ async fn update_chat(chat_id: String, name: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn delete_chat(chat_id: String) -> Result<(), String> {
+    db::delete_chat(chat_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // New command to subscribe to chat updates
 #[tauri::command]
 async fn subscribe_to_chat_updates(window: AppHandle) -> Result<(), String> {
@@ -127,7 +134,8 @@ pub fn run() {
             add_message,
             update_chat,
             subscribe_to_chat_updates,
-            test
+            test,
+            delete_chat
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

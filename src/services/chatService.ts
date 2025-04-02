@@ -133,4 +133,22 @@ export async function updateWindowTitle(title: string): Promise<void> {
   } catch (error) {
     console.error("Error updating window title:", error);
   }
+}
+
+/**
+ * Delete a chat
+ */
+export async function deleteChat(chatId: string): Promise<void> {
+  try {
+    await invoke("delete_chat", { chatId });
+  } catch (error) {
+    console.error(`Error deleting chat ${chatId}:`, error);
+
+    // Handle potential closed channel errors
+    if (error && typeof error === 'string' && error.includes('closed channel')) {
+      throw new Error(`Database connection error: ${error}. Please restart the application.`);
+    }
+
+    throw error; // Re-throw other errors
+  }
 } 
