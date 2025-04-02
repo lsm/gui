@@ -114,7 +114,7 @@ export function ChatView(props: ChatViewProps) {
       </div>
       
       {/* Message input */}
-      <form class="flex px-[5%] py-4 pb-6 bg-chat-bg border-t border-border shadow-[0_-4px_20px_var(--color-chat-shadow)] fixed bottom-0 left-0 right-0 z-100 w-[calc(100%-260px)] ml-[260px] box-border" onSubmit={handleSubmit}>
+      <form class="flex px-[5%] py-4 pb-6 bg-chat-bg border-t border-border shadow-[0_-4px_20px_var(--color-chat-shadow)] fixed bottom-0 left-0 right-0 w-[calc(100%-260px)] ml-[260px] box-border" onSubmit={handleSubmit}>
         <textarea
           ref={textareaRef}
           value={props.inputValue}

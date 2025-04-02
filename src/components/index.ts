@@ -1,4 +1,4 @@
 export * from './Sidebar';
 export * from './ChatView';
 export * from './ChatControlBar';
-export * from './ConfirmationModal'; 
+export * from './ConfirmationDropdown'; 
