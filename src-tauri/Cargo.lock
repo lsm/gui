@@ -2526,6 +2526,7 @@ dependencies = [
 name = "gui"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "either",
  "endpoints",
  "futures",

@@ -48,13 +48,25 @@ export function ChatView(props: ChatViewProps) {
   });
 
   // Helper function to normalize sender type for proper styling
-  const normalizeSender = (sender: string): "user" | "ai" => {
-    // If sender starts with "user-", it's a user message
-    if (sender.startsWith("user-") || sender === "user") {
-      return "user";
+  const normalizeSender = (message: Message): "user" | "assistant" | "system" | "tool" => {
+    // Check by author type
+    if (message.author && message.author.kind) {
+      switch (message.author.kind) {
+        case "User":
+          return "user";
+        case "Assistant":
+          return "assistant";
+        case "System":
+          return "system"; // System messages styled like AI
+        case "Tool":
+          return "tool"; // Tool messages styled like AI
+        default:
+          return "assistant";
+      }
     }
-    // Otherwise treat as AI
-    return "ai";
+    
+    // Fallback for backward compatibility
+    return "assistant";
   };
   
   // Scroll to bottom when new messages are added
@@ -103,8 +115,8 @@ export function ChatView(props: ChatViewProps) {
         ) : (
           <For each={props.messages}>
             {(message) => (
-              <div class={`max-w-full py-3 shadow-none leading-relaxed text-[15px] border-b-0 m-0 w-full relative ${normalizeSender(message.sender) === 'user' ? 'self-end bg-transparent text-text-primary py-2.5 pr-[5%] pl-0 text-right' : 'self-center bg-transparent text-text-primary py-2.5 px-[10%] flex justify-center'}`}>
-                <div class={`break-words leading-normal max-w-[90%] ${normalizeSender(message.sender) === 'user' ? 'bg-chat-user-message-bg p-3 rounded-[18px] rounded-br-1 relative inline-block shadow-[0_2px_6px_var(--color-chat-message-shadow)] max-w-full text-left' : 'bg-transparent p-3 relative inline-block max-w-[650px] text-left'}`}>
+              <div class={`max-w-full py-3 shadow-none leading-relaxed text-[15px] border-b-0 m-0 w-full relative ${normalizeSender(message) === 'user' ? 'self-end bg-transparent text-text-primary py-2.5 pr-[5%] pl-0 text-right' : 'self-center bg-transparent text-text-primary py-2.5 px-[10%] flex justify-center'}`}>
+                <div class={`break-words leading-normal max-w-[90%] ${normalizeSender(message) === 'user' ? 'bg-chat-user-message-bg p-3 rounded-[18px] rounded-br-1 relative inline-block shadow-[0_2px_6px_var(--color-chat-message-shadow)] max-w-full text-left' : 'bg-transparent p-3 relative inline-block max-w-[650px] text-left'}`}>
                   {message.text}
                 </div>
               </div>

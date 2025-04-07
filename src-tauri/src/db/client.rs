@@ -1,6 +1,8 @@
-use crate::db::schema::{Chat, Message, create_chat_data, create_message_data, ApiChat};
+use crate::db::schema::{create_chat_data, create_message_data, ApiChat, ApiMessage, Author, AuthorType, Chat, Message};
 use surrealdb::engine::local::{RocksDb, Db};
 use surrealdb::Surreal;
+use surrealdb::{Datetime, RecordId};
+use chrono::{DateTime, Utc};
 use tokio::sync::{OnceCell, broadcast};
 use uuid::Uuid;
 use std::path::PathBuf;
@@ -8,6 +10,7 @@ use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use std::error::Error;
 use futures::StreamExt;
+use std::str::FromStr;
 
 // Define namespace and database name
 const NAMESPACE: &str = "chat_app";
@@ -45,21 +48,23 @@ pub async fn init_database() -> Result<(), Box<dyn Error + Send + Sync>> {
     
     // Create schema for the tables
     db.query(r#"
+        DEFINE TABLE author SCHEMAFULL;
+        DEFINE FIELD kind ON author TYPE string;
+        DEFINE FIELD name ON author TYPE string;
+        
         DEFINE TABLE chat SCHEMAFULL;
-        DEFINE FIELD id ON chat TYPE string;
         DEFINE FIELD name ON chat TYPE string;
-        DEFINE FIELD creator ON chat TYPE string;
-        DEFINE FIELD created_at ON chat TYPE number;
+        DEFINE FIELD author ON chat TYPE record<author>;
+        DEFINE FIELD created_at ON chat TYPE datetime;
         
         DEFINE TABLE message SCHEMAFULL;
-        DEFINE FIELD id ON message TYPE string;
-        DEFINE FIELD chat_id ON message TYPE string;
+        DEFINE FIELD chat ON message TYPE record<chat>;
         DEFINE FIELD sequence_number ON message TYPE number;
         DEFINE FIELD text ON message TYPE string;
-        DEFINE FIELD sender ON message TYPE string;
-        DEFINE FIELD timestamp ON message TYPE number;
+        DEFINE FIELD author ON message TYPE record<author>;
+        DEFINE FIELD created_at ON message TYPE datetime;
         
-        DEFINE INDEX chat_id ON TABLE message FIELDS chat_id;
+        DEFINE INDEX chat_idx ON TABLE message FIELDS chat;
     "#).await?;
     
     // Set the database instance
@@ -105,11 +110,12 @@ fn initialize_chat_live_query() {
                                     // Convert the chat notification to ApiChat with proper type annotation
                                     let chat: Chat = notification.data;
                                     let api_chat = ApiChat {
-                                        id: chat.id.as_ref().map_or_else(
+                                        id: chat.id.map_or_else(
                                             || "unknown".to_string(),
-                                            |thing| thing.id.to_string(),
+                                            |record_id| record_id.to_string(),
                                         ),
                                         name: chat.name.clone(),
+                                        author: None, // We don't have author data here
                                         created_at: chat.created_at,
                                     };
                                     
@@ -209,27 +215,124 @@ pub async fn get_db() -> Result<&'static Surreal<Db>, Box<dyn Error + Send + Syn
     }
 }
 
-// Query all chats
-pub async fn query_chats() -> Result<Vec<Chat>, Box<dyn Error + Send + Sync>> {
+// Query all chats with their authors
+pub async fn query_chats() -> Result<Vec<ApiChat>, Box<dyn Error + Send + Sync>> {
     let db = get_db().await?;
     
-    // Query all chats
-    let chats: Vec<Chat> = db.select("chat").await?;
+    // Query all chats with their authors
+    let mut result = db.query("SELECT *, author.* FROM chat")
+        .await?;
     
-    Ok(chats)
+    // This will get the chats with joined author data
+    let chats: Vec<serde_json::Value> = result.take(0)?;
+    
+    // Convert to ApiChat format
+    let api_chats: Vec<ApiChat> = chats.into_iter()
+        .filter_map(|chat_value| {
+            let chat_id = chat_value.get("id")?.get("id")?.as_str()?;
+            
+            // Extract author data
+            let author_data = chat_value.get("author")?;
+            let author_kind_str = author_data.get("kind")?.as_str()?;
+            let author_kind = match author_kind_str {
+                "User" => AuthorType::User,
+                "Assistant" => AuthorType::Assistant,
+                "Tool" => AuthorType::Tool,
+                "System" => AuthorType::System,
+                _ => return None,
+            };
+            
+            let author = Author {
+                id: None, // We don't need the ID for API responses
+                kind: author_kind,
+                name: author_data.get("name")?.as_str()?.to_string(),
+            };
+            
+            // Parse the datetime string from SurrealDB
+            let created_at_str = chat_value.get("created_at")?.as_str()?;
+            let datetime = match DateTime::parse_from_rfc3339(created_at_str) {
+                Ok(dt) => Datetime::from(dt.with_timezone(&Utc)),
+                Err(_) => return None,
+            };
+            
+            Some(ApiChat {
+                id: chat_id.to_string(),
+                name: chat_value.get("name")?.as_str()?.to_string(),
+                author: Some(author),
+                created_at: datetime,
+            })
+        })
+        .collect();
+    
+    Ok(api_chats)
 }
 
 // Query messages for a specific chat
-pub async fn query_messages(chat_id: String) -> Result<Vec<Message>, Box<dyn Error + Send + Sync>> {
+pub async fn query_messages(chat_id: String) -> Result<Vec<ApiMessage>, Box<dyn Error + Send + Sync>> {
     let db = get_db().await?;
     
-    // Query messages for the given chat
-    let mut result = db.query("SELECT * FROM message WHERE chat_id = $id ORDER BY sequence_number")
-        .bind(("id", chat_id))
-        .await?;
-    let messages: Vec<Message> = result.take(0)?;
+    // Convert string to RecordId if needed
+    let record_id = if chat_id.contains(':') {
+        RecordId::from_str(&chat_id).ok()
+    } else {
+        RecordId::from_str(&format!("chat:{}", chat_id)).ok()
+    };
     
-    Ok(messages)
+    // Return empty array if record_id is invalid
+    let record_id = match record_id {
+        Some(id) => id,
+        None => return Ok(vec![]),
+    };
+    
+    // Query messages for the given chat with their authors
+    let mut result = db.query("SELECT *, author.* FROM message WHERE chat = $id ORDER BY sequence_number")
+        .bind(("id", record_id))
+        .await?;
+    
+    // This will get messages with joined author data
+    let messages: Vec<serde_json::Value> = result.take(0)?;
+    
+    // Convert to ApiMessage format
+    let api_messages: Vec<ApiMessage> = messages.into_iter()
+        .filter_map(|msg_value| {
+            let msg_id = msg_value.get("id")?.get("id")?.as_str()?;
+            
+            // Extract author data
+            let author_data = msg_value.get("author")?;
+            let author_kind_str = author_data.get("kind")?.as_str()?;
+            let author_kind = match author_kind_str {
+                "User" => AuthorType::User,
+                "Assistant" => AuthorType::Assistant,
+                "Tool" => AuthorType::Tool,
+                "System" => AuthorType::System,
+                _ => return None,
+            };
+            
+            let author = Author {
+                id: None, // We don't need the ID for API responses
+                kind: author_kind,
+                name: author_data.get("name")?.as_str()?.to_string(),
+            };
+            
+            // Parse the datetime string from SurrealDB
+            let created_at_str = msg_value.get("created_at")?.as_str()?;
+            let datetime = match DateTime::parse_from_rfc3339(created_at_str) {
+                Ok(dt) => Datetime::from(dt.with_timezone(&Utc)),
+                Err(_) => return None,
+            };
+            
+            Some(ApiMessage {
+                id: msg_id.to_string(),
+                chat_id: msg_value.get("chat")?.get("id")?.as_str()?.to_string(),
+                sequence_number: msg_value.get("sequence_number")?.as_u64()?,
+                text: msg_value.get("text")?.as_str()?.to_string(),
+                author: Some(author),
+                created_at: datetime,
+            })
+        })
+        .collect();
+    
+    Ok(api_messages)
 }
 
 // Create a new chat
@@ -237,11 +340,26 @@ pub async fn create_chat(name: String) -> Result<String, Box<dyn Error + Send + 
     // Get DB connection, this will auto-reinitialize if needed 
     let db = get_db().await?;
     
-    // Generate a pseudo-random user ID
-    let user_id = format!("user-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("anonymous"));
+    // Create a user author
+    let author = Author {
+        id: None,
+        kind: AuthorType::User,
+        name: format!("User-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("anonymous")),
+    };
     
-    // Create a new chat
-    let chat = create_chat_data(name, user_id);
+    // Insert the author first
+    println!("Creating author");
+    let created_author: Option<Author> = db.create("author")
+        .content(author)
+        .await?;
+    
+    let author_id = match created_author {
+        Some(author) => author.id,
+        None => return Err("Failed to create author record".into()),
+    };
+    
+    // Create a new chat with reference to the author
+    let chat = create_chat_data(name, author_id);
     
     // Insert into the database with error tracing
     println!("Attempting to create chat in database");
@@ -253,7 +371,7 @@ pub async fn create_chat(name: String) -> Result<String, Box<dyn Error + Send + 
     let chat_id = match created {
         Some(record) => record.id.map_or_else(
             || "unknown".to_string(), 
-            |thing| thing.id.to_string()
+            |record_id| record_id.to_string()
         ),
         None => return Err("Failed to create chat: No record returned".into()),
     };
@@ -267,23 +385,17 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
     // Get DB connection with auto-reconnect if needed
     let db = get_db().await?;
     
-    // Check if chat exists - Extracting table and ID parts
-    println!("Checking if chat exists: {}", chat_id);
-    
-    // The chat_id might be in form "chat:uuid" or just "uuid"
-    let parts: Vec<&str> = chat_id.split(':').collect();
-    let (table, id) = if parts.len() > 1 {
-        (parts[0], parts[1])
+    // Convert string to RecordId
+    let chat_record_id = if chat_id.contains(':') {
+        RecordId::from_str(&chat_id).map_err(|e| format!("Invalid chat ID format: {}", e))?
     } else {
-        ("chat", parts[0])
+        RecordId::from_str(&format!("chat:{}", chat_id)).map_err(|e| format!("Invalid chat ID format: {}", e))?
     };
-
-    // debug_query_chats(db).await?;
-    // debug_query_messages(db, chat_id.clone()).await?;
-        
-    // Query the chat with proper ID format
-    println!("Looking for chat with table='{}', id='{}'", table, id);
-    let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select((table, id)).await;
+    
+    // Check if chat exists
+    println!("Checking if chat exists: {}", chat_id);
+    let chat_result: Result<Option<Chat>, surrealdb::Error> = db.select(chat_record_id.clone()).await;
+    
     let _chat = match chat_result {
         Ok(maybe_chat) => match maybe_chat {
             Some(chat) => {
@@ -291,8 +403,8 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
                 chat
             },
             None => {
-                eprintln!("Chat not found with ID {}", id);
-                return Err(format!("Chat not found with ID {}", id).into());
+                eprintln!("Chat not found with ID {}", chat_id);
+                return Err(format!("Chat not found with ID {}", chat_id).into());
             }
         },
         Err(e) => {
@@ -303,8 +415,8 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
     
     // Get the next sequence number
     println!("Querying messages for chat: {}", chat_id);
-    let query_result = db.query("SELECT * FROM message WHERE chat_id = $id")
-        .bind(("id", chat_id.clone()))
+    let query_result = db.query("SELECT * FROM message WHERE chat = $id")
+        .bind(("id", chat_record_id.clone()))
         .await;
     
     let messages: Vec<Message> = match query_result {
@@ -323,11 +435,29 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
     
     let sequence_number = messages.len() as u64 + 1;
     
-    // Create a new message
+    // Create an author for the message
+    let author = Author {
+        id: None,
+        kind: AuthorType::User,
+        name: sender_name,
+    };
+    
+    // Insert the author first
+    println!("Creating author");
+    let created_author: Option<Author> = db.create("author")
+        .content(author)
+        .await?;
+    
+    let author_id = match created_author {
+        Some(author) => author.id,
+        None => return Err("Failed to create author record".into()),
+    };
+    
+    // Create a new message with reference to author
     let message = create_message_data(
-        chat_id,
+        Some(chat_record_id),
         text,
-        sender_name,
+        author_id,
         sequence_number
     );
     
@@ -341,7 +471,7 @@ pub async fn add_message(chat_id: String, text: String, sender_name: String) -> 
     let message_id = match created {
         Some(record) => record.id.map_or_else(
             || "unknown".to_string(), 
-            |thing| thing.id.to_string()
+            |record_id| record_id.to_string()
         ),
         None => return Err("Failed to create message: No record returned".into()),
     };

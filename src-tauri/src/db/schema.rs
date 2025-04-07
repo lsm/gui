@@ -1,34 +1,55 @@
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
-use surrealdb::sql::Thing;
+use surrealdb::{Datetime, RecordId};
+
+// Define the types of authors that can create messages or chats
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum AuthorType {
+    User,
+    Assistant,
+    Tool,
+    System,
+}
+
+// Author as a separate entity
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Author {
+    #[serde(skip_serializing)]
+    pub id: Option<RecordId>,
+    pub kind: AuthorType,
+    pub name: String,
+}
 
 // Define structs for chats and messages - usable directly by the API
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Chat {
     #[serde(skip_serializing)]
-    pub id: Option<Thing>,
+    pub id: Option<RecordId>,
     pub name: String,
-    pub creator: String,
-    pub created_at: u64,
+    #[serde(rename = "author")]
+    pub author_id: Option<RecordId>,
+    pub created_at: Datetime,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     #[serde(skip_serializing)]
-    pub id: Option<Thing>,
-    pub chat_id: String,
+    pub id: Option<RecordId>,
+    #[serde(rename = "chat")]
+    pub chat_id: Option<RecordId>,
     pub sequence_number: u64,
     pub text: String,
-    pub sender: String,
-    pub timestamp: u64,
+    #[serde(rename = "author")]
+    pub author_id: Option<RecordId>,
+    pub created_at: Datetime,
 }
 
-// Simplified API types when needed
+// API types with expanded author information
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApiChat {
     pub id: String,
-    pub name: String, 
-    pub created_at: u64,
+    pub name: String,
+    pub author: Option<Author>,
+    pub created_at: Datetime,
 }
 
 // API version of Message
@@ -38,15 +59,16 @@ pub struct ApiMessage {
     pub chat_id: String,
     pub sequence_number: u64,
     pub text: String,
-    pub sender: String,
-    pub timestamp: u64,
+    pub author: Option<Author>,
+    pub created_at: Datetime,
 }
 
 impl From<Chat> for ApiChat {
     fn from(c: Chat) -> Self {
         Self {
-            id: c.id.map_or_else(|| "unknown".to_string(), |t| t.id.to_string()),
+            id: c.id.map_or_else(|| "unknown".to_string(), |t| t.to_string()),
             name: c.name,
+            author: None, // Will need to be populated separately with an author query
             created_at: c.created_at,
         }
     }
@@ -55,12 +77,12 @@ impl From<Chat> for ApiChat {
 impl From<Message> for ApiMessage {
     fn from(m: Message) -> Self {
         Self {
-            id: m.id.map_or_else(|| "unknown".to_string(), |t| t.id.to_string()),
-            chat_id: m.chat_id,
+            id: m.id.map_or_else(|| "unknown".to_string(), |t| t.to_string()),
+            chat_id: m.chat_id.map_or_else(|| "unknown".to_string(), |t| t.to_string()),
             sequence_number: m.sequence_number,
             text: m.text,
-            sender: m.sender,
-            timestamp: m.timestamp,
+            author: None, // Will need to be populated separately with an author query
+            created_at: m.created_at,
         }
     }
 }
@@ -75,23 +97,23 @@ pub fn validate_chat_name(name: String) -> String {
 }
 
 // Create a new chat record
-pub fn create_chat_data(name: String, creator: String) -> Chat {
+pub fn create_chat_data(name: String, author_id: Option<RecordId>) -> Chat {
     let name = validate_chat_name(name);
     
     // Create new chat without ID (SurrealDB will generate it)
     Chat {
         id: None,
         name,
-        creator,
+        author_id,
         created_at: get_current_timestamp(),
     }
 }
 
 // Create a new message record
 pub fn create_message_data(
-    chat_id: String,
+    chat_id: Option<RecordId>,
     text: String,
-    sender: String,
+    author_id: Option<RecordId>,
     sequence_number: u64,
 ) -> Message {
     // Create message without ID (SurrealDB will generate it)
@@ -100,15 +122,12 @@ pub fn create_message_data(
         chat_id,
         sequence_number,
         text,
-        sender,
-        timestamp: get_current_timestamp(),
+        author_id,
+        created_at: get_current_timestamp(),
     }
 }
 
-// Helper function to get current timestamp as u64
-pub fn get_current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-} 
+// Helper function to get current timestamp as Datetime
+pub fn get_current_timestamp() -> Datetime {
+    Datetime::from(chrono::Utc::now())
+}

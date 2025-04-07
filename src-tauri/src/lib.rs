@@ -6,7 +6,6 @@ mod llm; // Add the new llm module
 
 // Use the chat_with_llm command from the llm module
 use llm::chat_with_llm;
-use endpoints::chat; // Import chat module from endpoints
 
 // Re-export types we need for the API
 pub use db::{Chat, Message, ApiChat, ApiMessage};
@@ -43,6 +42,7 @@ async fn create_chat(name: String) -> Result<ApiChat, String> {
     Ok(ApiChat {
         id: chat_id,
         name,
+        author: None,
         created_at: current_time,
     })
 }
@@ -122,8 +122,8 @@ async fn add_message(chat_id: String, text: String, sender_name: String) -> Resu
         id: message_id,
         chat_id,
         text,
-        sender: sender_name,
-        timestamp: current_time,
+        author: None,
+        created_at: current_time,
         sequence_number: 0, // This will be updated when we get the subscription update
     })
 }

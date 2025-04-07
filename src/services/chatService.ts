@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
-import { Chat, Message } from "../types";
+import { Chat, Message, Author, AuthorType } from "../types";
 
 /**
  * Load all chats from the database
@@ -66,21 +66,33 @@ export async function sendMessage(chatId: string, text: string): Promise<[Messag
   console.log("sendMessage called with chatId:", chatId);
   
   try {
-    // Add user message to chat using camelCase parameters
+    // Create a user author for the message
+    const userAuthor: Author = {
+      kind: AuthorType.User,
+      name: "You"
+    };
+    
+    // Add user message to chat
     console.log("Sending user message with chatId:", chatId);
     const userMessage = await invoke<Message>("add_message", { 
       chatId,
       text,
-      senderName: "user"
+      senderName: userAuthor.name // This will be used to create the Author in the backend
     });
     console.log("User message added:", userMessage);
     
-    // Add AI response using the same parameter format
+    // Create an AI author for the response
+    const aiAuthor: Author = {
+      kind: AuthorType.Assistant,
+      name: "Assistant"
+    };
+    
+    // Add AI response
     console.log("Sending AI response with chatId:", chatId);
     const aiResponse = await invoke<Message>("add_message", { 
       chatId,
       text: `You said: "${userMessage.text}". This is a simulated AI response.`,
-      senderName: "ai"
+      senderName: aiAuthor.name // This will be used to create the Author in the backend
     });
     console.log("AI response added:", aiResponse);
     
