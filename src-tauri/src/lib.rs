@@ -2,9 +2,15 @@
 
 // Import db module
 mod db;
+mod llm; // Add the new llm module
+
+// Use the chat_with_llm command from the llm module
+use llm::chat_with_llm;
+use endpoints::chat; // Import chat module from endpoints
 
 // Re-export types we need for the API
 pub use db::{Chat, Message, ApiChat, ApiMessage};
+pub use endpoints::chat::{ChatCompletionRequest, ChatCompletionObject}; // Re-export LLM types
 use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
@@ -63,6 +69,54 @@ async fn add_message(chat_id: String, text: String, sender_name: String) -> Resu
     // Since we may not immediately get the update from the subscription,
     // create a temporary object to return
     let current_time = db::get_current_timestamp();
+    
+    // If sender is user, generate an AI response and add it to the database
+    if sender_name == "user" {
+        // Generate an AI response using the LLM
+        println!("Generating AI response for message: {}", text);
+        
+        // Create a ChatCompletionRequest with system and user messages
+        let request = endpoints::chat::ChatCompletionRequest {
+            model: Some("llama2-7b-chat".to_string()),  // Use a default model
+            messages: vec![
+                endpoints::chat::ChatCompletionRequestMessage::new_system_message(
+                    "You are a helpful assistant.",
+                    None
+                ),
+                endpoints::chat::ChatCompletionRequestMessage::new_user_message(
+                    endpoints::chat::ChatCompletionUserMessageContent::Text(text.clone()),
+                    None
+                ),
+            ],
+            temperature: Some(0.7),
+            max_completion_tokens: Some(128),
+            stream: Some(false),
+            ..Default::default()
+        };
+        
+        // Call the LLM with our request
+        match llm::chat_with_llm(request).await {
+            Ok(response) => {
+                // Extract the assistant's response
+                if let Some(choice) = response.choices.first() {
+                    if let Some(content) = &choice.message.content {
+                        // Add the AI response to the database
+                        println!("Saving AI response to database: {}", content);
+                        let _ = db::add_message(chat_id.clone(), content.clone(), "ai".to_string())
+                            .await
+                            .map_err(|e| {
+                                eprintln!("Error saving AI response: {}", e);
+                                // We don't return this error as the original user message was saved successfully
+                            });
+                    }
+                }
+            },
+            Err(e) => {
+                // Log the error but don't fail the original message addition
+                eprintln!("Error generating AI response: {}", e);
+            }
+        }
+    }
     
     Ok(ApiMessage {
         id: message_id,
@@ -135,7 +189,8 @@ pub fn run() {
             update_chat,
             subscribe_to_chat_updates,
             test,
-            delete_chat
+            delete_chat,
+            chat_with_llm
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

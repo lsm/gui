@@ -28,3 +28,6 @@ rand = "0.8.5"
 uuid = { version = "1.6.1", features = ["v4", "serde"] }
 surrealdb = { version = "2.2.1", features = ["kv-rocksdb"] }
 futures = "0.3"
+either = "1.13"
+llama-core = "0.28.6"
+endpoints = "0.25.1"
