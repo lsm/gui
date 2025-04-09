@@ -3,6 +3,7 @@
 // Import db module
 mod db;
 mod llm; // Add the new llm module
+mod model_manager; // Add the model manager module
 
 // Use the chat_with_llm command from the llm module
 use llm::chat_with_llm;
@@ -166,7 +167,7 @@ async fn subscribe_to_chat_updates(window: AppHandle) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .setup(|_app| {
+        .setup(|app| {
             // Create a separate blocking task to initialize the database
             // We'll use a simple blocking approach here to avoid runtime issues
             println!("Starting database initialization...");
@@ -176,6 +177,15 @@ pub fn run() {
                 match db::get_db().await {
                     Ok(_) => println!("Database initialized successfully from tauri::async_runtime"),
                     Err(e) => eprintln!("Failed to initialize database: {}", e),
+                }
+            });
+
+            // Check and download the default model if needed
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match model_manager::check_and_download_model(&app_handle).await {
+                    Ok(_) => println!("Model checked and downloaded successfully"),
+                    Err(e) => eprintln!("Failed to check/download model: {}", e)
                 }
             });
             
@@ -190,7 +200,7 @@ pub fn run() {
             subscribe_to_chat_updates,
             test,
             delete_chat,
-            chat_with_llm
+            chat_with_llm,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

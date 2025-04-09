@@ -3,6 +3,7 @@ import { subscribeToUpdates } from "./db-client";
 import { Sidebar, ChatView, ChatControlBar } from "./components";
 import { Message, Chat } from "./types";
 import { loadChats, loadMessages, createChat, sendMessage, updateWindowTitle, deleteChat } from "./services/chatService";
+import { listen } from "@tauri-apps/api/event";
 
 function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
@@ -13,6 +14,7 @@ function App() {
   const [loadingMessages, setLoadingMessages] = createSignal(false);
   const [newChatName, setNewChatName] = createSignal("");
   const [showNewChat, setShowNewChat] = createSignal(false);
+  const [modelStatus, setModelStatus] = createSignal<string>("");
   
   // Load chat list from database
   async function fetchChats() {
@@ -58,7 +60,15 @@ function App() {
       setItems,
     );
     
-    onCleanup(cleanup);
+    // Listen for model download status updates
+    const unlisten = await listen("model-download-status", (event) => {
+      setModelStatus(event.payload as string);
+    });
+    
+    onCleanup(() => {
+      cleanup();
+      unlisten();
+    });
   });
   
   // Load messages when selected chat changes
@@ -204,6 +214,11 @@ function App() {
           onSendMessage={handleSendMessage}
           disabled={selectedItem() === null}
         />
+        {modelStatus() && (
+          <div class="fixed bottom-0 left-0 p-2 bg-blue-500 text-white text-sm">
+            {modelStatus()}
+          </div>
+        )}
       </div>
     </div>
   );
