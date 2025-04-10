@@ -4,8 +4,6 @@ use tauri::AppHandle;
 use anyhow::{Result, Context};
 use hf_hub::api::tokio::{ApiBuilder, Progress};
 use tauri::Emitter;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 const DEFAULT_MODEL: &str = "unsloth/gemma-3-1b-it-GGUF";
 const MODEL_FILENAME: &str = "gemma-3-1b-it-Q8_0.gguf";
@@ -17,6 +15,7 @@ struct DownloadProgress {
     current: usize,
     total: usize,
     file_name: String,
+    tracked_bytes: std::sync::Arc<std::sync::atomic::AtomicUsize>, // Track bytes across chunks
 }
 
 impl Progress for DownloadProgress {
@@ -24,6 +23,7 @@ impl Progress for DownloadProgress {
         self.total = size;
         self.current = 0;
         self.file_name = filename.to_string();
+        self.tracked_bytes.store(0, std::sync::atomic::Ordering::SeqCst);
         
         // Emit single event with all information
         self.app.emit("model-download-progress", serde_json::json!({
@@ -39,20 +39,28 @@ impl Progress for DownloadProgress {
 
     async fn update(&mut self, size: usize) {
         self.current += size;
+        
+        // Track bytes cumulatively across chunked downloads
+        let previous = self.tracked_bytes.fetch_add(size, std::sync::atomic::Ordering::SeqCst);
+        let cumulative_bytes = previous + size;
+        
         let progress = if self.total > 0 {
-            (self.current as f32 / self.total as f32) * 100.0
+            (cumulative_bytes as f32 / self.total as f32) * 100.0
         } else {
             0.0
         };
+
+        // println!("Raw Progress: {}, size: {}, current: {}, cumulative: {}, total: {}", 
+        //     progress, size, self.current, cumulative_bytes, self.total);
         
         let formatted = format!("{:.1}%", progress);
         
-        // Emit single event with all progress information
+        // Emit single event with all progress information using the cumulative bytes
         self.app.emit("model-download-progress", serde_json::json!({
             "status": "downloading",
             "message": format!("Downloading {} - {}", self.file_name, formatted),
             "filename": self.file_name,
-            "current": self.current,
+            "current": cumulative_bytes,
             "total": self.total,
             "percentage": progress,
             "formatted": formatted
@@ -125,12 +133,13 @@ impl ModelManager {
             return Err(anyhow::anyhow!("Invalid model ID format"));
         }
 
-        // Initialize progress handler
+        // Initialize progress handler for config file
         let progress_handler = DownloadProgress {
             app: app.clone(),
             current: 0,
             total: 0,
             file_name: String::new(),
+            tracked_bytes: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         };
         
         let config_path = api.model(DEFAULT_MODEL.to_string())
