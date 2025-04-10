@@ -24,7 +24,7 @@ impl Progress for DownloadProgress {
         self.tracked_bytes.store(0, std::sync::atomic::Ordering::SeqCst);
         
         // Emit single event with all information
-        self.app.emit("model-download-progress", serde_json::json!({
+        if let Err(e) = self.app.emit("model-download-progress", serde_json::json!({
             "status": "initializing",
             "message": format!("Starting download of {} ({} bytes)", filename, size),
             "filename": filename,
@@ -32,7 +32,9 @@ impl Progress for DownloadProgress {
             "total": size,
             "percentage": 0.0,
             "formatted": "0.0%"
-        })).unwrap();
+        })) {
+            println!("Failed to emit initialization progress: {}", e);
+        }
     }
 
     async fn update(&mut self, size: usize) {
@@ -52,7 +54,7 @@ impl Progress for DownloadProgress {
         let formatted = format!("{:.1}%", progress);
         
         // Emit single event with all progress information using the cumulative bytes
-        self.app.emit("model-download-progress", serde_json::json!({
+        if let Err(e) = self.app.emit("model-download-progress", serde_json::json!({
             "status": "downloading",
             "message": format!("Downloading {} - {}", self.file_name, formatted),
             "filename": self.file_name,
@@ -60,14 +62,16 @@ impl Progress for DownloadProgress {
             "total": self.total,
             "percentage": progress,
             "formatted": formatted
-        })).unwrap();
+        })) {
+            println!("Failed to emit download progress: {}", e);
+        }
     }
 
     async fn finish(&mut self) {
         let formatted = "100.0%";
         
         // Emit single completion event
-        self.app.emit("model-download-progress", serde_json::json!({
+        if let Err(e) = self.app.emit("model-download-progress", serde_json::json!({
             "status": "completed",
             "message": format!("Finished downloading {}", self.file_name),
             "filename": self.file_name,
@@ -75,7 +79,9 @@ impl Progress for DownloadProgress {
             "total": self.total,
             "percentage": 100.0,
             "formatted": formatted
-        })).unwrap();
+        })) {
+            println!("Failed to emit completion progress: {}", e);
+        }
     }
 }
 
