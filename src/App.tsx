@@ -58,7 +58,9 @@ function App() {
       setItems,
     );
     
-    onCleanup(cleanup);
+    onCleanup(() => {
+      cleanup();
+    });
   });
   
   // Load messages when selected chat changes

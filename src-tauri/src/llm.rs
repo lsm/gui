@@ -1,5 +1,8 @@
 use llama_core::chat::{self}; // Import the chat module
 use either::Either;
+use std::path::PathBuf;
+use anyhow::Result;
+use crate::model_manager::ModelManager;
 
 use endpoints::chat::{
     ChatCompletionObject,
@@ -11,6 +14,19 @@ use endpoints::chat::{
 #[tauri::command]
 pub async fn chat_with_llm(mut request: ChatCompletionRequest) -> Result<ChatCompletionObject, String> {
     println!("Received chat request for model: {}", request.model.as_deref().unwrap_or("unknown"));
+
+    // If no model is specified, use the default downloaded model
+    if request.model.is_none() {
+        let model_manager = ModelManager::new().map_err(|e| e.to_string())?;
+        let model_path = model_manager.get_model_path();
+        
+        if !model_path.exists() {
+            return Err("Default model not found. Please wait for the model to download.".to_string());
+        }
+        
+        // Set the model path as the model identifier
+        request.model = Some(model_path.to_str().unwrap().to_string());
+    }
 
     // Ensure stream is set to false - we don't support streaming responses yet
     request.stream = Some(false);
