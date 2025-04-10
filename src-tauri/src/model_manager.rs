@@ -12,7 +12,6 @@ const MODEL_FILENAME: &str = "gemma-3-1b-it-Q8_0.gguf";
 #[derive(Clone)]
 struct DownloadProgress {
     app: AppHandle,
-    current: usize,
     total: usize,
     file_name: String,
     tracked_bytes: std::sync::Arc<std::sync::atomic::AtomicUsize>, // Track bytes across chunks
@@ -21,7 +20,6 @@ struct DownloadProgress {
 impl Progress for DownloadProgress {
     async fn init(&mut self, size: usize, filename: &str) {
         self.total = size;
-        self.current = 0;
         self.file_name = filename.to_string();
         self.tracked_bytes.store(0, std::sync::atomic::Ordering::SeqCst);
         
@@ -38,8 +36,6 @@ impl Progress for DownloadProgress {
     }
 
     async fn update(&mut self, size: usize) {
-        self.current += size;
-        
         // Track bytes cumulatively across chunked downloads
         let previous = self.tracked_bytes.fetch_add(size, std::sync::atomic::Ordering::SeqCst);
         let cumulative_bytes = previous + size;
@@ -136,7 +132,6 @@ impl ModelManager {
         // Initialize progress handler for config file
         let progress_handler = DownloadProgress {
             app: app.clone(),
-            current: 0,
             total: 0,
             file_name: String::new(),
             tracked_bytes: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
